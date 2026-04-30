@@ -1,0 +1,20 @@
+{
+  "name": "claudio-server",
+  "version": "0.2.0",
+  "description": "Personal AI radio · local brain",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "https-proxy-agent": "^7.0.5",
+    "node-fetch": "^3.3.2",
+    "ws": "^8.17.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

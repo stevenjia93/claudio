@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>Claudio · 个人电台</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=JetBrains+Mono:wght@400;600&family=Fraunces:ital,wght@0,300;0,500;1,300&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="grain"></div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="num">1.</span>
+      <div>
+        <h1>Claudio</h1>
+        <p class="tag">个人 AI 电台 · <span class="en">a personal radio</span></p>
+      </div>
+    </div>
+    <div class="pills">
+      <span class="pill pill-coral">claude</span>
+      <span class="pill pill-teal">netease</span>
+      <span class="pill pill-dim" id="ws-pill">○ ws</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ————— 现在播放 ————— -->
+    <section class="card card-now">
+      <div class="card-header">
+        <span class="num">2.</span>
+        <div>
+          <h2>现在播放</h2>
+          <p class="en">now playing</p>
+        </div>
+      </div>
+
+      <div class="now-body">
+        <div class="artwork" id="artwork">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <rect x="5" y="5" width="90" height="90" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2" />
+            <line x1="5" y1="5" x2="95" y2="95" stroke="currentColor" stroke-width="1" opacity="0.3" />
+            <line x1="95" y1="5" x2="5" y2="95" stroke="currentColor" stroke-width="1" opacity="0.3" />
+          </svg>
+        </div>
+
+        <div class="track-info">
+          <h3 id="song-name">—</h3>
+          <p id="song-artist" class="muted">等一段话唤醒</p>
+          <div class="progress">
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+            <div class="timestamps">
+              <span id="t-current" class="mono">0:00</span>
+              <span id="t-total" class="mono muted">0:00</span>
+            </div>
+          </div>
+          <div class="controls">
+            <button id="btn-play" aria-label="播放/暂停" class="ctrl ctrl-main">▶</button>
+            <button id="btn-next" aria-label="下一首" class="ctrl">▷ next</button>
+          </div>
+        </div>
+      </div>
+
+      <audio id="audio" preload="auto"></audio>
+    </section>
+
+    <!-- ————— DJ 说 ————— -->
+    <section class="card card-dj" id="dj-card" hidden>
+      <div class="card-header">
+        <span class="num">3.</span>
+        <div>
+          <h2>Claudio 说</h2>
+          <p class="en">the DJ speaks</p>
+        </div>
+      </div>
+      <blockquote id="dj-say"></blockquote>
+      <p class="reason" id="dj-reason"></p>
+    </section>
+
+    <!-- ————— 队列 ————— -->
+    <section class="card card-queue">
+      <div class="card-header">
+        <span class="num">4.</span>
+        <div>
+          <h2>待播</h2>
+          <p class="en">the queue</p>
+        </div>
+        <span class="count mono" id="queue-count">0</span>
+      </div>
+      <ul id="queue-list" class="queue-list"></ul>
+    </section>
+
+    <!-- ————— 聊天输入 ————— -->
+    <section class="card card-chat">
+      <div class="card-header">
+        <span class="num">5.</span>
+        <div>
+          <h2>跟我说</h2>
+          <p class="en">say something</p>
+        </div>
+      </div>
+      <form id="chat-form">
+        <textarea
+          id="chat-input"
+          rows="2"
+          placeholder="e.g. 今晚有点闷,来点发呆的  /  play 稻香 周杰伦  /  next"
+          autofocus
+        ></textarea>
+        <button type="submit" class="ctrl ctrl-send" id="btn-send">
+          送出 <span class="en">send</span>
+        </button>
+      </form>
+      <ul id="chat-history" class="chat-history"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p class="mono muted">claudio · localhost:8080 · 手工打造</p>
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
