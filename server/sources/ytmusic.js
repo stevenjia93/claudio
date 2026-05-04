@@ -6,11 +6,12 @@
 //   ② yt-dlp (子进程)        — 装了 yt-dlp 就用它,稳定胜过 play-dl。
 //                                brew install yt-dlp
 //
-// 配置:
-//   YT_COOKIES_FROM_BROWSER=chrome       # 借用本机浏览器登录态(最省事,推荐)
+// 配置 (按优先级,谁先设了用谁):
+//   YT_COOKIES_FILE=/path/to/cookies.txt # cookie 文件 (Docker 推荐 — 用 -v 挂进来)
+//   YT_COOKIES_FROM_BROWSER=chrome       # 借用本机浏览器登录态 (Mac 本地最方便)
 //                                          # 可选: chrome / safari / firefox / edge / brave
 //   YT_COOKIE=<browser cookie 字符串>     # 也可以手贴 cookie 头
-//   YT_DLP_BIN=yt-dlp                    # 自定义路径(默认 PATH 里找)
+//   YT_DLP_BIN=yt-dlp                    # 自定义路径 (默认 PATH 里找)
 //
 // 流代理: 浏览器拉 /api/proxy/yt/<videoId>, server.js pipe 这里返回的 Readable。
 
@@ -19,10 +20,12 @@ import { Readable } from 'node:stream';
 
 const YT_COOKIE = process.env.YT_COOKIE || '';
 const YT_COOKIES_BROWSER = process.env.YT_COOKIES_FROM_BROWSER || '';
+const YT_COOKIES_FILE = process.env.YT_COOKIES_FILE || '';
 const YT_DLP = process.env.YT_DLP_BIN || 'yt-dlp';
 
-// yt-dlp 通用 cookie 选项
+// yt-dlp 通用 cookie 选项 (按优先级)
 function ytdlpCookieArgs() {
+  if (YT_COOKIES_FILE) return ['--cookies', YT_COOKIES_FILE];
   if (YT_COOKIES_BROWSER) return ['--cookies-from-browser', YT_COOKIES_BROWSER];
   if (YT_COOKIE) return ['--add-header', `Cookie:${YT_COOKIE}`];
   return [];

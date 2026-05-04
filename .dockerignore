@@ -1,0 +1,29 @@
+# 别拷进镜像
+.git
+.gitignore
+.github
+
+# 密钥 — 走 docker run -e 传, 不进镜像
+.env
+.env.local
+
+# 已装的本地依赖 — 镜像里重新 npm ci
+**/node_modules
+
+# 运行时持久化 — 走 volume, 不烤进镜像
+state/
+tts_cache/
+
+# IDE / Claude Code 工作区
+.claude
+.vscode
+.idea
+
+# Docker 自己的文件 (镜像里也不需要)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# 本地开发产物
+*.log
+.DS_Store

@@ -1,0 +1,33 @@
+# claudio docker-compose 一键起
+#
+# 用法:
+#   1. cp .env.example .env  并填好 API keys
+#   2. docker compose up -d
+#   3. 浏览器开 http://localhost:8080
+#   关停: docker compose down
+#
+# 数据持久化在两个 volume 里 (state/ 和 tts_cache/), 镜像更新不会丢。
+
+services:
+  claudio:
+    image: ghcr.io/stevenjia93/claudio:latest
+    # 想本地构建跑就把上面注释掉,用下面这行:
+    # build: .
+    container_name: claudio
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - claudio-state:/app/state
+      - claudio-tts:/app/tts_cache
+    # YT 用浏览器 cookie 的话, 需要把 cookie 文件挂进来 (Docker 容器拿不到 host 的 Chrome cookie)
+    # 1) 在 host 用 yt-dlp --cookies-from-browser chrome --cookies cookies.txt > 拿到文件
+    # 2) 挂进来:
+    #   - ./cookies.txt:/cookies.txt:ro
+    # 3) .env 里设: YT_COOKIES_FILE=/cookies.txt
+
+volumes:
+  claudio-state:
+  claudio-tts:

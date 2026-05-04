@@ -49,9 +49,48 @@
 
 ---
 
-## 跑起来 — Mac 版
+## 跑起来
 
-### 1. 装基础工具
+### 方式 A: Docker (推荐, 一行命令)
+
+```bash
+# 1. 拷贝 .env.example 然后填好 API keys
+curl -O https://raw.githubusercontent.com/stevenjia93/claudio/main/.env.example
+mv .env.example .env
+nano .env
+
+# 2. 一行命令拉起来
+docker run -d \
+  --name claudio \
+  -p 8080:8080 \
+  --env-file .env \
+  -v claudio-state:/app/state \
+  -v claudio-tts:/app/tts_cache \
+  ghcr.io/stevenjia93/claudio:latest
+
+# 3. 浏览器开 http://localhost:8080
+```
+
+或者用 `docker-compose`（更清晰，容易关停）：
+
+```bash
+curl -O https://raw.githubusercontent.com/stevenjia93/claudio/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/stevenjia93/claudio/main/.env.example
+mv .env.example .env && nano .env
+docker compose up -d
+```
+
+镜像支持 `linux/amd64` 和 `linux/arm64`（Mac M 系列原生）。看日志 `docker logs -f claudio`，关停 `docker compose down` 或 `docker rm -f claudio`。
+
+**Docker 里的 YouTube Music**：容器拿不到你 Chrome 的 cookie。两个办法：
+- 手贴：`.env` 里写 `YT_COOKIE=YSC=xxx; VISITOR_INFO1_LIVE=xxx;...`（从浏览器 F12 拷）
+- 文件挂载：在 host 跑一次 `yt-dlp --cookies-from-browser chrome --cookies cookies.txt`，然后 docker run 加 `-v $(pwd)/cookies.txt:/cookies.txt:ro`，`.env` 里设 `YT_COOKIES_FILE=/cookies.txt`
+
+---
+
+### 方式 B: Mac 本地原生
+
+#### 1. 装基础工具
 
 ```bash
 # 没装 Homebrew 先装: https://brew.sh
@@ -59,7 +98,7 @@ brew install node git yt-dlp     # yt-dlp 是 YouTube Music 用的
 node -v                          # 确认 >= 20
 ```
 
-### 2. 拿到 API keys
+#### 2. 拿到 API keys
 
 | Key | 必填 | 哪儿拿 | 用途 |
 |---|---|---|---|
@@ -67,7 +106,7 @@ node -v                          # 确认 >= 20
 | `ELEVENLABS_API_KEY` | 推荐 | https://elevenlabs.io → Profile → API key | DJ 真人嗓（不填就用浏览器机器嗓） |
 | `ELEVENLABS_VOICE_ID` | 配合上面 | Voice Library 里挑一个，复制 Voice ID | |
 
-### 3. 装依赖
+#### 3. 装依赖
 
 ```bash
 unzip claudio.zip
@@ -75,7 +114,7 @@ cd claudio/server
 npm install        # 会自动装 play-dl 作为 YT Music fallback
 ```
 
-### 4. 配 .env
+#### 4. 配 .env
 
 ```bash
 cd ..
@@ -96,7 +135,7 @@ ELEVENLABS_VOICE_ID=IRHApOXLvnW57QJPQH2P
 MUSIC_SOURCES=netease,qq,ytmusic
 ```
 
-### 5. 起音源 server
+#### 5. 起音源 server
 
 **网易云**（必跑，开新终端）：
 ```bash
@@ -108,7 +147,7 @@ npx NeteaseCloudMusicApi
 
 **YouTube Music**：用 `yt-dlp` + 浏览器 cookie，不需要起 server
 
-### 6. 起 Claudio
+#### 6. 起 Claudio
 
 ```bash
 cd claudio/server
@@ -127,7 +166,7 @@ node server.js
 
 打开 <http://localhost:8080> ，在底下输入框敲一句话试试。
 
-### 之后每天怎么启动
+#### 之后每天怎么启动
 
 第一次跑过之后，依赖都装好了、`.env` 也填好了，**用一行命令拉起全套**：
 
