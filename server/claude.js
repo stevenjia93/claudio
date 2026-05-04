@@ -26,6 +26,36 @@ export async function invoke(prompt) {
   return invokeCli(prompt);
 }
 
+// 间奏报幕: 同一个 API, max_tokens 砍小, 只要 say 字段
+export async function invokeIntro(prompt) {
+  if (!API_KEY) {
+    // CLI 模式不太适合短调用,直接返空让客户端 fallback 浏览器 TTS
+    return { say: '' };
+  }
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 256,
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    agent
+  });
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error(`API ${r.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await r.json();
+  const text = data.content?.map(c => c.text || '').join('') || '';
+  const inner = extractJson(text);
+  return { say: inner.say || '' };
+}
+
 // ——— 路线 1: 直接调 API ———
 async function invokeApi(prompt) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {

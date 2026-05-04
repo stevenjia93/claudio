@@ -20,6 +20,8 @@ const queueList = $('queue-list');
 const queueCount = $('queue-count');
 const historyList = $('history-list');
 const historyCount = $('history-count');
+const likedList = $('liked-list');
+const likedCount = $('liked-count');
 const chatForm = $('chat-form');
 const chatInput = $('chat-input');
 const chatHistory = $('chat-history');
@@ -62,6 +64,7 @@ function handleWs(msg) {
   switch (msg.type) {
     case 'hello':
       if (msg.feedback) feedback = msg.feedback;
+      if (likedCount) likedCount.textContent = String((feedback.liked || []).length);
       renderQueue(msg.queue || []);
       if (msg.nowPlaying) renderNowPlaying(msg.nowPlaying);
       refreshHistory();
@@ -81,12 +84,20 @@ function handleWs(msg) {
       renderQueue(msg.queue);
       speakThenPlay(msg.say, msg.audio_url);
       break;
+    case 'dj_intro':
+      // 间奏报幕: 不切歌, 只 duck 当前 audio + 播 DJ + 完了渐回
+      appendChat('assistant', msg.say, '间奏');
+      speakIntro(msg.say, msg.audio_url);
+      break;
     case 'control':
       applyControl(msg.cmd);
       break;
     case 'feedback':
       feedback = msg.feedback || feedback;
       reflectFeedbackButtons();
+      if (likedCount) likedCount.textContent = String((feedback.liked || []).length);
+      // 如果"喜欢"tab 当前是激活的, 重新渲染
+      if (!document.querySelector('[data-tab="liked"]').hidden) renderLiked();
       break;
   }
 }
@@ -231,7 +242,7 @@ function reflectFeedbackButtons() {
   const st = feedbackStateForCurrent();
   btnLike.classList.toggle('active', st === 'like');
   btnDislike.classList.toggle('active', st === 'dislike');
-  btnLike.textContent = st === 'like' ? '♥' : '♡';
+  // SVG 心 — active 时 .heart-fill 显示, css 里控制
 }
 
 audio.addEventListener('play', () => {
@@ -347,6 +358,31 @@ function speakThenPlay(text, audioUrl) {
   // 浏览器 TTS 兜底
   duck();
   startNext();
+  speakBrowser(text, restore);
+}
+
+// 间奏报幕: 跟 speakThenPlay 不同 — 不切歌, 不启 next, 只压低当前歌音量,
+// 让 DJ 在歌的某一段上配音, 说完渐回原音量
+function speakIntro(text, audioUrl) {
+  const DUCK = 0.20;
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    rampVolume(audio, 1.0, 1300);
+  };
+  const duck = () => { audio.volume = DUCK; };
+
+  if (audioUrl) {
+    djAudio.src = audioUrl;
+    djAudio.volume = 1.0;
+    djAudio.onloadeddata = duck;
+    djAudio.onended = restore;
+    djAudio.onerror = () => speakBrowser(text, restore);
+    djAudio.play().catch(() => restore());
+    return;
+  }
+  duck();
   speakBrowser(text, restore);
 }
 
@@ -492,6 +528,59 @@ function bindQueueItem(li, idx) {
       body: JSON.stringify({ queue: next })
     }).catch(() => {});
   });
+}
+
+// —— Tabs (待播 / 已播 / 喜欢) ——
+(function bindTabs() {
+  const tabs = document.querySelectorAll('.tabs .tab');
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.dataset.tab;
+      tabs.forEach(x => x.classList.toggle('tab-active', x === t));
+      document.querySelectorAll('.tab-pane').forEach(p => {
+        p.hidden = p.dataset.tab !== target;
+      });
+      if (target === 'liked') renderLiked();
+      if (target === 'history') refreshHistory();
+    });
+  });
+})();
+
+// 喜欢列表 — 来自 feedback.liked, 双击重听
+function renderLiked() {
+  if (!likedList) return;
+  const items = (feedback.liked || []).slice().reverse();   // 新的在前
+  likedCount.textContent = String(items.length);
+  likedList.innerHTML = '';
+  if (!items.length) {
+    likedList.innerHTML = '<li class="history-empty">还没标过喜欢的</li>';
+    return;
+  }
+  for (const p of items) {
+    const li = document.createElement('li');
+    li.title = '双击重听';
+    li.innerHTML = `
+      <span class="h-replay">♥</span>
+      <span class="h-song">${escapeHtml(p.song || '')}</span>
+      <span class="h-artist">${escapeHtml(p.artist || '')}</span>
+    `;
+    li.addEventListener('dblclick', async () => {
+      autoPlayArmed = true;
+      // liked 里只有元信息没有 url, 现搜然后插队立即播 (不入队)
+      try {
+        const r = await fetch('/api/play-now', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ song: p.song, artist: p.artist })
+        });
+        const np = await r.json();
+        if (np?.url) {
+          audio.src = np.url;
+          await audio.play().catch(()=>{});
+        }
+      } catch (e) { console.warn('[liked replay]', e.message); }
+    });
+    likedList.appendChild(li);
+  }
 }
 
 // 已播过列表 — 双击 → 立即重听
@@ -888,4 +977,36 @@ document.addEventListener('keydown', (e) => {
   }, { passive: true });
 
   flushCursor();
+})();
+
+// ============================================
+// 10. 流星 — 不定期一颗,从屏幕一角对角划过
+// ============================================
+(function setupShootingStars() {
+  const layer = document.getElementById('shooting-stars');
+  if (!layer) return;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+
+  function spawn() {
+    const s = document.createElement('div');
+    s.className = 'shooting-star';
+    // 随机起点 (左上区) + 角度 25-50 度 (向右下划)
+    const startX = Math.random() * 60;       // 0-60% vw
+    const startY = Math.random() * 35;       // 0-35% vh
+    const angle = 22 + Math.random() * 28;
+    s.style.left = startX + 'vw';
+    s.style.top  = startY + 'vh';
+    s.style.setProperty('--rot', angle + 'deg');
+    layer.appendChild(s);
+    setTimeout(() => s.remove(), 2600);
+  }
+
+  // 入场先来一颗,后面每 6-18s 一颗
+  function schedule() {
+    const delay = 6000 + Math.random() * 12000;
+    setTimeout(() => { spawn(); schedule(); }, delay);
+  }
+  setTimeout(spawn, 2500);
+  schedule();
 })();

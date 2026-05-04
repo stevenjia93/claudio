@@ -16,6 +16,7 @@
   <div class="scenery" aria-hidden="true"></div>
   <div class="grid" aria-hidden="true"></div>
   <div class="grid-spot" aria-hidden="true"></div>
+  <div class="shooting-stars" id="shooting-stars" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
 
   <header class="top">
@@ -62,8 +63,22 @@
             <div class="controls">
               <button id="btn-play" aria-label="播放/暂停" class="ctrl ctrl-main">▶</button>
               <button id="btn-next" aria-label="下一首" class="ctrl" title="下一首">⏭</button>
-              <button id="btn-like" aria-label="喜欢" class="ctrl ctrl-fb" title="喜欢这首,多推类似的">♡</button>
-              <button id="btn-dislike" aria-label="不喜欢" class="ctrl ctrl-fb ctrl-fb-x" title="不喜欢,自动切下一首">💔</button>
+              <button id="btn-like" aria-label="喜欢" class="ctrl ctrl-fb" title="喜欢这首,多推类似的">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path class="heart-outline" d="M12 20.5s-7.2-5.4-7.2-11A4.3 4.3 0 0 1 12 6.5a4.3 4.3 0 0 1 7.2 3c0 5.6-7.2 11-7.2 11z"/>
+                  <path class="heart-fill" d="M12 20.5s-7.2-5.4-7.2-11A4.3 4.3 0 0 1 12 6.5a4.3 4.3 0 0 1 7.2 3c0 5.6-7.2 11-7.2 11z" fill="currentColor" stroke="none" opacity="0"/>
+                </svg>
+              </button>
+              <button id="btn-dislike" aria-label="不喜欢" class="ctrl ctrl-fb ctrl-fb-x" title="不喜欢,自动切下一首">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <!-- 左半 -->
+                  <path d="M12 7.2C11.1 5.7 9.6 4.6 7.6 4.6 5.1 4.6 3 6.7 3 9.4 3 14.2 12 20.5 12 20.5"/>
+                  <!-- 右半 -->
+                  <path d="M12 7.2C12.9 5.7 14.4 4.6 16.4 4.6 18.9 4.6 21 6.7 21 9.4 21 14.2 12 20.5 12 20.5"/>
+                  <!-- 中间裂纹 (锯齿) -->
+                  <path d="M12 7.2L10.7 11L13 14L11 17.5L12 20.5"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -78,24 +93,25 @@
         </div>
       </div>
 
-      <!-- 队列 -->
-      <div class="card card-queue">
-        <div class="card-mini-head">
-          <h2>待播</h2>
-          <span class="en">queue</span>
-          <span class="count mono" id="queue-count">0</span>
+      <!-- 列表三合一: 待播 / 已播 / 喜欢 -->
+      <div class="card card-list">
+        <div class="tabs" role="tablist">
+          <button class="tab tab-active" data-tab="queue" role="tab">
+            待播 <span class="en">queue</span>
+            <span class="count mono" id="queue-count">0</span>
+          </button>
+          <button class="tab" data-tab="history" role="tab">
+            已播 <span class="en">recent</span>
+            <span class="count mono" id="history-count">0</span>
+          </button>
+          <button class="tab" data-tab="liked" role="tab">
+            喜欢 <span class="en">liked</span>
+            <span class="count mono" id="liked-count">0</span>
+          </button>
         </div>
-        <ul id="queue-list" class="queue-list"></ul>
-      </div>
-
-      <!-- 已播过 -->
-      <div class="card card-history">
-        <div class="card-mini-head">
-          <h2>已播</h2>
-          <span class="en">recent</span>
-          <span class="count mono" id="history-count">0</span>
-        </div>
-        <ul id="history-list" class="history-list"></ul>
+        <ul id="queue-list" class="queue-list tab-pane tab-pane-active" data-tab="queue"></ul>
+        <ul id="history-list" class="history-list tab-pane" data-tab="history" hidden></ul>
+        <ul id="liked-list" class="history-list liked-list tab-pane" data-tab="liked" hidden></ul>
       </div>
     </section>
 
@@ -103,7 +119,7 @@
     <section class="col col-right">
       <div class="card card-chat">
         <div class="card-mini-head">
-          <h2>跟我说</h2>
+          <h2>想听点儿什么</h2>
           <span class="en">say something</span>
         </div>
 
@@ -125,7 +141,7 @@
   </main>
 
   <footer>
-    <p class="mono muted">claudio · localhost:8080 · 手工打造</p>
+    <p class="mono muted">claudio · 手工打造</p>
   </footer>
 
   <div class="bubbles" id="bubbles" aria-hidden="true"></div>

@@ -104,6 +104,51 @@ body {
           mask-image: radial-gradient(circle 170px at var(--mx) var(--my), rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 60%, transparent 100%);
 }
 
+/* 流星 — JS 不定期生成,从屏幕上方对角线划过 */
+.shooting-stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+}
+.shooting-star {
+  --rot: 35deg;
+  position: absolute;
+  width: 130px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(to right,
+    transparent 0%,
+    rgba(255,255,255,0.25) 50%,
+    rgba(255,255,255,0.85) 92%,
+    rgba(180,140,255,0.95) 100%);
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.8))
+          drop-shadow(0 0 12px rgba(180,140,255,0.5));
+  opacity: 0;
+  transform-origin: right center;
+  animation: shoot 2.4s cubic-bezier(0.3, 0.5, 0.4, 1) forwards;
+}
+.shooting-star::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,0.95),
+              0 0 18px rgba(180,140,255,0.7);
+  transform: translateY(-50%);
+}
+@keyframes shoot {
+  0%   { transform: rotate(var(--rot)) translateX(0);        opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 0.8; }
+  100% { transform: rotate(var(--rot)) translateX(115vmax);  opacity: 0; }
+}
+
 .grain {
   position: fixed;
   inset: 0;
@@ -574,20 +619,25 @@ h2 {
   border-color: var(--coral-dim);
 }
 
-/* like / dislike — 圆形小按钮 */
+/* like / dislike — 线条 SVG, 跟 ♡ 同风格,无 emoji 红色 */
 .ctrl-fb {
   padding: 6px 10px;
-  font-size: 15px;
   min-width: 34px;
   color: var(--ink-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.ctrl-fb svg { display: block; transition: transform 0.2s; }
+.ctrl-fb:hover svg { transform: scale(1.12); }
+
 .ctrl-fb:hover {
   color: var(--coral);
   border-color: var(--coral);
   box-shadow: 0 6px 18px -8px var(--coral), 0 0 0 1px rgba(255,107,142,0.25);
 }
 .ctrl-fb-x:hover {
-  color: var(--muted);
+  color: var(--ink-dim);
   border-color: var(--muted);
   box-shadow: 0 6px 18px -8px var(--muted);
 }
@@ -596,14 +646,15 @@ h2 {
   border-color: var(--coral);
   border-style: solid;
   background: rgba(255,107,142,0.10);
-  text-shadow: 0 0 12px var(--coral);
+  filter: drop-shadow(0 0 6px rgba(255,107,142,0.5));
 }
+.ctrl-fb.active .heart-fill { opacity: 1; }
 .ctrl-fb-x.active {
   color: var(--muted);
   border-color: var(--muted);
   border-style: solid;
   background: rgba(106,103,98,0.18);
-  text-shadow: 0 0 8px var(--muted);
+  filter: none;
 }
 
 /* ============================================
@@ -777,6 +828,62 @@ blockquote {
   padding: 6px 0;
   font-size: 12px;
 }
+
+/* —— 三合一 tabs (待播 / 已播 / 喜欢) —— */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+.tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: var(--font-en);
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  position: relative;
+  transition: color 0.2s, background 0.2s;
+  font-weight: 500;
+}
+.tab .en {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.tab .count {
+  font-size: 10px;
+  color: var(--muted);
+}
+.tab:hover {
+  color: var(--ink);
+  background: rgba(255,255,255,0.03);
+}
+.tab.tab-active {
+  color: var(--coral);
+  background: rgba(255,107,142,0.08);
+}
+.tab.tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: -9px;
+  left: 25%;
+  right: 25%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--coral), var(--purple));
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--coral);
+}
+
+.tab-pane[hidden] { display: none; }
 
 /* —— 已播过 —— 紧凑列表, 双击重听 */
 .history-list {

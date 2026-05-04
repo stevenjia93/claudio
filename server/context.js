@@ -104,3 +104,40 @@ play 数组里每首写成 "歌名 - 歌手" 的格式,**6 到 10 首**,要一�
 
   return prompt;
 }
+
+/**
+ * 间奏报幕: 一首歌结束, 切到下一首前,
+ * 让 DJ 说一段简短的过渡词。10-25 秒能念完, 不重新选歌。
+ */
+export async function assembleIntro({ nextSong, lastPlayed, queue }) {
+  const persona = await readOr(
+    path.resolve('../prompts/dj-persona.md'),
+    'You are Claudio, a private radio DJ.'
+  );
+  const upcoming = (queue || []).slice(0, 3)
+    .map(s => `  · ${s.song} - ${s.artist}`).join('\n');
+
+  return `${persona}
+
+---
+# 现在的情况
+刚刚播完: ${lastPlayed ? `${lastPlayed.song} - ${lastPlayed.artist}` : '(开场)'}
+即将播放: ${nextSong.song} - ${nextSong.artist}
+之后队列:
+${upcoming || '(没了)'}
+
+---
+# 你这次的任务 — 间奏报幕 (不是新一批选歌)
+作为 DJ, 在这两首歌之间说一段非常短的过渡词。
+约束:
+- 30-90 字英文 (不是 90 词!), 像真电台 DJ 报幕一样
+- 一两句话就够,不要列歌单不要长抒情
+- 提到下一首是什么 (歌名 + 歌手), 给个 5-10 字的钩子让人继续听
+- 别重复刚才的歌, 也别预告 3 首之后的事
+- 风格跟 dj-persona 保持一致 — 含蓄,克制,iambic
+
+# 输出 — 严格 JSON
+{
+  "say": "your line here, 30-90 英文字, spoken cadence"
+}`;
+}

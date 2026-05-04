@@ -13,7 +13,9 @@ import * as music from './music.js';
 import * as claude from './claude.js';
 import * as tts from './tts.js';
 import { route } from './router.js';
-import { assemble } from './context.js';
+import { assemble, assembleIntro } from './context.js';
+
+const DJ_AUTO_INTRO = process.env.DJ_AUTO_INTRO !== '0' && process.env.DJ_AUTO_INTRO !== 'false';
 
 const PORT = process.env.PORT || 8080;
 const MOCK_CLAUDE = process.env.MOCK_CLAUDE === '1';
@@ -140,10 +142,44 @@ app.get('/api/now', (req, res) => {
   res.json(state.get().nowPlaying);
 });
 
-app.get('/api/next', (req, res) => {
+app.get('/api/next', async (req, res) => {
   const next = state.popQueue();
   if (!next) return res.json(null);
+  const lastPlayed = state.get().nowPlaying;
+
+  // DJ 间奏判定: 每 djBreakAt 首歌 (随机 2-4) 插一段
+  const s = state.get();
+  s.playsSinceDjBreak = (s.playsSinceDjBreak || 0) + 1;
+  const shouldIntro = DJ_AUTO_INTRO
+    && lastPlayed
+    && s.playsSinceDjBreak >= (s.djBreakAt || 2);
+
+  let djIntro = null;
+  if (shouldIntro) {
+    s.playsSinceDjBreak = 0;
+    s.djBreakAt = 2 + Math.floor(Math.random() * 3);   // 下次 2/3/4 首
+    try {
+      const prompt = await assembleIntro({ nextSong: next, lastPlayed, queue: s.queue });
+      const brain = await claude.invokeIntro(prompt);
+      if (brain.say) {
+        state.appendMessage('assistant', brain.say);
+        let audioUrl = null;
+        try { audioUrl = await tts.synthesize(brain.say); } catch (e) {
+          console.warn('[dj-intro tts]', e.message);
+        }
+        djIntro = { say: brain.say, audio_url: audioUrl };
+      }
+    } catch (e) {
+      console.warn('[dj-intro]', e.message);
+    }
+  }
+
   state.setNowPlaying(next);
+
+  // 先发 dj_intro (如果有), 再发 now_playing — 客户端能拿到 intro 边说边放
+  if (djIntro) {
+    broadcast({ type: 'dj_intro', ...djIntro });
+  }
   broadcast({ type: 'now_playing', nowPlaying: next, queue: state.get().queue });
   res.json(next);
 });
@@ -237,6 +273,28 @@ app.put('/api/queue', (req, res) => {
   state.setQueue(queue);
   broadcast({ type: 'queue_update', queue });
   res.json({ ok: true });
+});
+
+// 立即播 (从 query 现搜): 喜欢里双击 / 历史里双击都走这个
+app.post('/api/play-now', async (req, res) => {
+  const { song, artist } = req.body || {};
+  if (!song) return res.status(400).json({ error: 'song 必填' });
+  const query = `${song} ${artist || ''}`.trim();
+  try {
+    const hit = await music.findPlayable(query);
+    if (!hit?.url) return res.status(404).json({ error: '没找到能播的' });
+    const item = {
+      source: hit.source, song: hit.name, artist: hit.artist,
+      album: hit.album, picUrl: hit.picUrl, url: hit.url,
+      duration: hit.duration, id: hit.id
+    };
+    state.setNowPlaying(item);
+    state.appendPlay({ ...item, source: 'replay' });
+    broadcast({ type: 'now_playing', nowPlaying: item, queue: state.get().queue });
+    res.json(item);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // 已播过列表

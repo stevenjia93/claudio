@@ -14,6 +14,9 @@ const DEFAULT_STATE = {
     liked: [],    // [{song, artist, ts}]
     disliked: []
   },
+  // DJ 间奏节奏: 每过 djBreakAt 首歌插一段过渡, 之后随机重置 2-4 首
+  playsSinceDjBreak: 0,
+  djBreakAt: 2,
   plan: null,     // 早报/晚报内容，v2 用
   prefs: {}       // 用户临时偏好，v2 用
 };
