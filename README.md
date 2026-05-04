@@ -125,7 +125,23 @@ node server.js
 [tts] ElevenLabs 就绪
 ```
 
-打开 http://localhost:8080，在底下输入框敲一句话试试。
+打开 <http://localhost:8080> ，在底下输入框敲一句话试试。
+
+### 之后每天怎么启动
+
+第一次跑过之后，依赖都装好了、`.env` 也填好了，**用一行命令拉起全套**：
+
+```bash
+./start.sh
+```
+
+`start.sh` 会自动：
+1. 检查 `.env` 在不在
+2. 没装依赖就 `npm install`
+3. NeteaseCloudMusicApi 没跑就后台起一个（日志 `/tmp/claudio-ncm.log`）
+4. 加载 `.env` 然后 `node server/server.js`
+
+`Ctrl+C` 退就行。Netease 那个后台进程下次还能复用，不用重启。
 
 ---
 
