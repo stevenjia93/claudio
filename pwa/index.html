@@ -13,13 +13,13 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="aurora" aria-hidden="true"></div>
-  <div class="stars" aria-hidden="true"></div>
+  <div class="scenery" aria-hidden="true"></div>
+  <div class="grid" aria-hidden="true"></div>
+  <div class="grid-spot" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
 
   <header class="top">
     <div class="brand">
-      <span class="num">1.</span>
       <div>
         <h1>Claudio</h1>
         <p class="tag">个人 AI 电台 · <span class="en">a personal radio</span></p>
@@ -32,93 +32,95 @@
     </div>
   </header>
 
-  <main>
-    <!-- ————— 现在播放 ————— -->
-    <section class="card card-now">
-      <div class="card-header">
-        <span class="num">2.</span>
-        <div>
-          <h2>现在播放</h2>
-          <p class="en">now playing</p>
-        </div>
-      </div>
+  <main class="layout">
+    <!-- ————— 左栏: 现在播放 + 歌词 + 队列 ————— -->
+    <section class="col col-left">
+      <div class="card card-now">
+        <div class="now-body">
+          <div class="artwork" id="artwork">
+            <div class="cover" id="cover"></div>
+            <svg class="cover-fallback" viewBox="0 0 100 100" aria-hidden="true">
+              <rect x="5" y="5" width="90" height="90" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2" />
+              <line x1="5" y1="5" x2="95" y2="95" stroke="currentColor" stroke-width="1" opacity="0.3" />
+              <line x1="95" y1="5" x2="5" y2="95" stroke="currentColor" stroke-width="1" opacity="0.3" />
+            </svg>
+          </div>
 
-      <div class="now-body">
-        <div class="artwork" id="artwork">
-          <svg viewBox="0 0 100 100" aria-hidden="true">
-            <rect x="5" y="5" width="90" height="90" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2" />
-            <line x1="5" y1="5" x2="95" y2="95" stroke="currentColor" stroke-width="1" opacity="0.3" />
-            <line x1="95" y1="5" x2="5" y2="95" stroke="currentColor" stroke-width="1" opacity="0.3" />
-          </svg>
-        </div>
-
-        <div class="track-info">
-          <h3 id="song-name">—</h3>
-          <p id="song-artist" class="muted">等一段话唤醒</p>
-          <div class="progress">
-            <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-            <div class="timestamps">
-              <span id="t-current" class="mono">0:00</span>
-              <span id="t-total" class="mono muted">0:00</span>
+          <div class="track-info">
+            <h3 id="song-name">—</h3>
+            <p id="song-artist" class="muted">等一段话唤醒</p>
+            <div class="progress">
+              <div class="progress-bar" id="progress-bar" role="slider" aria-label="进度" tabindex="0">
+                <div class="progress-fill" id="progress-fill"></div>
+                <div class="progress-thumb" id="progress-thumb"></div>
+              </div>
+              <div class="timestamps">
+                <span id="t-current" class="mono">0:00</span>
+                <span id="t-total" class="mono muted">0:00</span>
+              </div>
+            </div>
+            <div class="controls">
+              <button id="btn-play" aria-label="播放/暂停" class="ctrl ctrl-main">▶</button>
+              <button id="btn-next" aria-label="下一首" class="ctrl" title="下一首">⏭</button>
+              <button id="btn-like" aria-label="喜欢" class="ctrl ctrl-fb" title="喜欢这首,多推类似的">♡</button>
+              <button id="btn-dislike" aria-label="不喜欢" class="ctrl ctrl-fb ctrl-fb-x" title="不喜欢,自动切下一首">💔</button>
             </div>
           </div>
-          <div class="controls">
-            <button id="btn-play" aria-label="播放/暂停" class="ctrl ctrl-main">▶</button>
-            <button id="btn-next" aria-label="下一首" class="ctrl">▷ next</button>
-          </div>
+        </div>
+
+        <audio id="audio" preload="auto"></audio>
+      </div>
+
+      <!-- 歌词 -->
+      <div class="card card-lyrics" id="card-lyrics" hidden>
+        <div class="lyrics-window" id="lyrics-window">
+          <div class="lyrics-track" id="lyrics-track"></div>
         </div>
       </div>
 
-      <audio id="audio" preload="auto"></audio>
-    </section>
-
-    <!-- ————— DJ 说 ————— -->
-    <section class="card card-dj" id="dj-card" hidden>
-      <div class="card-header">
-        <span class="num">3.</span>
-        <div>
-          <h2>Claudio 说</h2>
-          <p class="en">the DJ speaks</p>
-        </div>
-      </div>
-      <blockquote id="dj-say"></blockquote>
-      <p class="reason" id="dj-reason"></p>
-    </section>
-
-    <!-- ————— 队列 ————— -->
-    <section class="card card-queue">
-      <div class="card-header">
-        <span class="num">4.</span>
-        <div>
+      <!-- 队列 -->
+      <div class="card card-queue">
+        <div class="card-mini-head">
           <h2>待播</h2>
-          <p class="en">the queue</p>
+          <span class="en">queue</span>
+          <span class="count mono" id="queue-count">0</span>
         </div>
-        <span class="count mono" id="queue-count">0</span>
+        <ul id="queue-list" class="queue-list"></ul>
       </div>
-      <ul id="queue-list" class="queue-list"></ul>
+
+      <!-- 已播过 -->
+      <div class="card card-history">
+        <div class="card-mini-head">
+          <h2>已播</h2>
+          <span class="en">recent</span>
+          <span class="count mono" id="history-count">0</span>
+        </div>
+        <ul id="history-list" class="history-list"></ul>
+      </div>
     </section>
 
-    <!-- ————— 聊天输入 ————— -->
-    <section class="card card-chat">
-      <div class="card-header">
-        <span class="num">5.</span>
-        <div>
+    <!-- ————— 右栏: 聊天 (始终可见) ————— -->
+    <section class="col col-right">
+      <div class="card card-chat">
+        <div class="card-mini-head">
           <h2>跟我说</h2>
-          <p class="en">say something</p>
+          <span class="en">say something</span>
         </div>
+
+        <ul id="chat-history" class="chat-history"></ul>
+
+        <form id="chat-form" class="chat-form">
+          <textarea
+            id="chat-input"
+            rows="2"
+            placeholder="今晚有点闷,来点发呆的 / play 稻香 周杰伦 / next"
+            autofocus
+          ></textarea>
+          <button type="submit" class="ctrl ctrl-send" id="btn-send">
+            送出
+          </button>
+        </form>
       </div>
-      <form id="chat-form">
-        <textarea
-          id="chat-input"
-          rows="2"
-          placeholder="e.g. 今晚有点闷,来点发呆的  /  play 稻香 周杰伦  /  next"
-          autofocus
-        ></textarea>
-        <button type="submit" class="ctrl ctrl-send" id="btn-send">
-          送出 <span class="en">send</span>
-        </button>
-      </form>
-      <ul id="chat-history" class="chat-history"></ul>
     </section>
   </main>
 

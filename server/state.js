@@ -10,6 +10,10 @@ const DEFAULT_STATE = {
   plays: [],      // {song, artist, url, ts, source: 'claude'|'direct'}
   queue: [],      // 待播放，[{song, artist, url}]
   nowPlaying: null,
+  feedback: {     // 用户喜好反馈
+    liked: [],    // [{song, artist, ts}]
+    disliked: []
+  },
   plan: null,     // 早报/晚报内容，v2 用
   prefs: {}       // 用户临时偏好，v2 用
 };
@@ -76,5 +80,35 @@ export function popQueue() {
 
 export function setNowPlaying(np) {
   state.nowPlaying = np;
+  save();
+}
+
+// 删除某首
+export function removeFromQueue(idx) {
+  if (idx < 0 || idx >= state.queue.length) return null;
+  const removed = state.queue.splice(idx, 1)[0];
+  save();
+  return removed;
+}
+
+// like / dislike / clear — 'clear' 把这首歌从两个数组都拿掉
+export function addFeedback(action, song) {
+  if (!state.feedback) state.feedback = { liked: [], disliked: [] };
+  const sig = `${(song.song || '').toLowerCase()}|${(song.artist || '').toLowerCase()}`;
+  const remove = (arr) => {
+    const i = arr.findIndex(s => `${(s.song || '').toLowerCase()}|${(s.artist || '').toLowerCase()}` === sig);
+    if (i >= 0) arr.splice(i, 1);
+  };
+  remove(state.feedback.liked);
+  remove(state.feedback.disliked);
+  if (action === 'like' || action === 'dislike') {
+    const target = action === 'like' ? state.feedback.liked : state.feedback.disliked;
+    target.push({
+      song: song.song, artist: song.artist, source: song.source || '', ts: Date.now()
+    });
+  }
+  // 各保留最近 100 条防膨胀
+  if (state.feedback.liked.length > 100) state.feedback.liked = state.feedback.liked.slice(-100);
+  if (state.feedback.disliked.length > 100) state.feedback.disliked = state.feedback.disliked.slice(-100);
   save();
 }

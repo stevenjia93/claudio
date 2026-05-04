@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "claudio-server",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "set -a; source .env; set +a; export MUSIC_SOURCES=netease,qq,ytmusic; export YT_COOKIES_FROM_BROWSER=chrome; cd server && node server.js"],
+      "port": 8080
+    },
+    {
+      "name": "claudio-pwa-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8181", "--directory", "pwa"],
+      "port": 8181
+    }
+  ]
+}

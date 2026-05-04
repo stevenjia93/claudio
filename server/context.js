@@ -43,12 +43,16 @@ export async function assemble(userInput, opts = {}) {
     ...opts.env
   };
 
-  // ④ 已检索记忆: 最近 10 次播放 + 最近 6 条对话
+  // ④ 已检索记忆: 最近 10 次播放 + 最近 6 条对话 + 用户反馈 (♥/✕)
   const s = state.get();
   const recentPlays = s.plays.slice(-10).map(p => `  · ${p.song} - ${p.artist}`).join('\n');
   const recentMessages = s.messages.slice(-6)
     .map(m => `  ${m.role === 'user' ? '我' : 'Claudio'}: ${m.content.slice(0, 120)}`)
     .join('\n');
+
+  const fb = s.feedback || { liked: [], disliked: [] };
+  const liked = fb.liked.slice(-15).map(f => `  ♥ ${f.song} - ${f.artist}`).join('\n');
+  const disliked = fb.disliked.slice(-15).map(f => `  ✕ ${f.song} - ${f.artist}`).join('\n');
 
   // ⑤ 用户输入 在下面单独放
   // ⑥ 执行轨迹 v2 再加
@@ -72,6 +76,12 @@ ${env.now} (${env.dayOfWeek},${env.hour} 点)
 # 最近播放过
 ${recentPlays || '(还没播过)'}
 
+# 我标记过喜欢的 (多推类似的)
+${liked || '(还没标过)'}
+
+# 我标记过不喜欢的 (避开 / 别再推)
+${disliked || '(还没标过)'}
+
 # 最近几句对话
 ${recentMessages || '(这是第一句)'}
 
@@ -88,7 +98,8 @@ ${userInput}
   "segue": "播完这批歌后过渡到下一段的引子 (一句话)"
 }
 
-play 数组里每首写成 "歌名 - 歌手" 的格式,3 到 5 首。
+play 数组里每首写成 "歌名 - 歌手" 的格式,**6 到 10 首**,要一口气把队列填够 25-40 分钟,
+顺序也要讲究: 开场暖,中段走起来,收尾留白或为下一段铺路。
 如果我只是闲聊没让你放歌,play 可以是空数组 []。`;
 
   return prompt;

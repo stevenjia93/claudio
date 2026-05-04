@@ -31,7 +31,12 @@ const clients = new Set();
 wss.on('connection', ws => {
   clients.add(ws);
   const s = state.get();
-  ws.send(JSON.stringify({ type: 'hello', nowPlaying: s.nowPlaying, queue: s.queue }));
+  ws.send(JSON.stringify({
+    type: 'hello',
+    nowPlaying: s.nowPlaying,
+    queue: s.queue,
+    feedback: s.feedback || { liked: [], disliked: [] }
+  }));
   ws.on('close', () => clients.delete(ws));
 });
 
@@ -42,28 +47,31 @@ function broadcast(obj) {
   }
 }
 
-// ——— 把 Claude 说的歌名转成可播队列 ———
+// ——— 把 Claude 说的歌名转成可播队列 (并行)———
 async function resolvePlayList(playNames) {
+  const results = await Promise.allSettled(
+    playNames.map(name => music.findPlayable(name))
+  );
   const resolved = [];
-  for (const name of playNames) {
-    try {
-      const hit = await music.findPlayable(name);
-      if (hit) {
-        resolved.push({
-          song: hit.name,
-          artist: hit.artist,
-          album: hit.album,
-          url: hit.url,
-          duration: hit.duration,
-          id: hit.id
-        });
-      } else {
-        console.warn(`[music] 没找到能播的: ${name}`);
-      }
-    } catch (e) {
-      console.warn(`[music] 解析失败 "${name}":`, e.message);
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.warn(`[music] 解析失败 "${playNames[i]}":`, r.reason?.message);
+    } else if (!r.value) {
+      console.warn(`[music] 没找到能播的: ${playNames[i]}`);
+    } else {
+      const hit = r.value;
+      resolved.push({
+        source: hit.source,
+        song: hit.name,
+        artist: hit.artist,
+        album: hit.album,
+        picUrl: hit.picUrl,
+        url: hit.url,
+        duration: hit.duration,
+        id: hit.id
+      });
     }
-  }
+  });
   return resolved;
 }
 
@@ -97,23 +105,19 @@ app.post('/api/chat', async (req, res) => {
     const prompt = await assemble(decision.payload.text);
     const brain = MOCK_CLAUDE ? await claude.mockInvoke(prompt) : await claude.invoke(prompt);
 
-    const items = await resolvePlayList(brain.play);
-    state.pushQueue(items);
-    items.forEach(it => state.appendPlay({ ...it, source: 'claude' }));
-
     state.appendMessage('assistant', brain.say);
 
-    // 4) TTS 合成(如果配了 ElevenLabs)— 不等完成就先响应,慢了就 fallback
-    //    但 WS 广播时我们想带上 audio_url,所以这里 await
-    //    ElevenLabs turbo 大概 1-3s,可接受
-    let audioUrl = null;
-    if (brain.say) {
-      try {
-        audioUrl = await tts.synthesize(brain.say);
-      } catch (e) {
-        console.warn('[tts] 合成挂了:', e.message);
-      }
-    }
+    // 歌曲解析和 TTS 合成同时跑,谁慢谁就是瓶颈,不再串行
+    const itemsP = resolvePlayList(brain.play);
+    const audioP = brain.say
+      ? tts.synthesize(brain.say).catch(e => {
+          console.warn('[tts] 合成挂了:', e.message);
+          return null;
+        })
+      : Promise.resolve(null);
+    const [items, audioUrl] = await Promise.all([itemsP, audioP]);
+    state.pushQueue(items);
+    items.forEach(it => state.appendPlay({ ...it, source: 'claude' }));
 
     broadcast({
       type: 'dj_broadcast',
@@ -149,6 +153,128 @@ app.post('/api/playing', (req, res) => {
   state.setNowPlaying(song);
   broadcast({ type: 'now_playing', nowPlaying: song, queue: state.get().queue });
   res.json({ ok: true });
+});
+
+// ——— API: 歌词 ———
+// 新路径带 source: /api/lyric/:source/:id
+app.get('/api/lyric/:source/:id', async (req, res) => {
+  const { source, id } = req.params;
+  if (!id) return res.status(400).json({ error: 'id 必填' });
+  try {
+    const lrc = await music.lyric(id, source);
+    res.json({ id, source, lyric: lrc || '' });
+  } catch (e) {
+    console.warn(`[lyric · ${source}] ${id}:`, e.message);
+    res.json({ id, source, lyric: '' });
+  }
+});
+
+// 旧路径(没带 source) → 默认主源
+app.get('/api/lyric/:id', async (req, res) => {
+  const id = req.params.id;
+  if (!id) return res.status(400).json({ error: 'id 必填' });
+  try {
+    const lrc = await music.lyric(id);
+    res.json({ id, lyric: lrc || '' });
+  } catch (e) {
+    console.warn('[lyric]', e.message);
+    res.json({ id, lyric: '' });
+  }
+});
+
+// ——— API: YT Music 流代理 ———
+// 浏览器不能直拉 YouTube,这里 pipe play-dl 的 stream
+app.get('/api/proxy/yt/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+  try {
+    const ytmusic = music.sources.ytmusic;
+    const { stream, type } = await ytmusic.streamAudio(videoId);
+    res.setHeader('Content-Type', type === 'webm' ? 'audio/webm' : 'audio/mp4');
+    res.setHeader('Cache-Control', 'no-store');
+    stream.pipe(res);
+    stream.on('error', e => {
+      console.warn(`[yt proxy] stream ${videoId}:`, e.message);
+      try { res.end(); } catch {}
+    });
+    req.on('close', () => {
+      try { stream.destroy(); } catch {}
+    });
+  } catch (e) {
+    console.warn(`[yt proxy] ${videoId}:`, e.message);
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// ——— API: 看哪些音源在跑 ———
+app.get('/api/sources', (req, res) => {
+  res.json(music.listSources());
+});
+
+// ——— API: like / dislike / clear 反馈 ———
+app.post('/api/feedback', (req, res) => {
+  const { action, song } = req.body || {};
+  if (!['like', 'dislike', 'clear'].includes(action)) {
+    return res.status(400).json({ error: 'action 要是 like / dislike / clear' });
+  }
+  if (!song || !song.song) return res.status(400).json({ error: 'song 必填' });
+  state.addFeedback(action, song);
+  broadcast({ type: 'feedback', action, song, feedback: state.get().feedback });
+  res.json({ ok: true });
+});
+
+// ——— API: 队列管理 (重排 / 删除) ———
+app.delete('/api/queue/:index', (req, res) => {
+  const idx = parseInt(req.params.index, 10);
+  const removed = state.removeFromQueue(idx);
+  if (!removed) return res.status(404).json({ error: 'index 越界' });
+  broadcast({ type: 'queue_update', queue: state.get().queue });
+  res.json({ ok: true, removed });
+});
+
+app.put('/api/queue', (req, res) => {
+  const { queue } = req.body || {};
+  if (!Array.isArray(queue)) return res.status(400).json({ error: 'queue 必须是数组' });
+  state.setQueue(queue);
+  broadcast({ type: 'queue_update', queue });
+  res.json({ ok: true });
+});
+
+// 已播过列表
+app.get('/api/history', (req, res) => {
+  const limit = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 20));
+  const plays = state.get().plays || [];
+  // 倒序 + 去重 (同一首歌只留最新一次)
+  const seen = new Set();
+  const out = [];
+  for (let i = plays.length - 1; i >= 0 && out.length < limit; i--) {
+    const p = plays[i];
+    const key = `${(p.song || '').toLowerCase()}|${(p.artist || '').toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  res.json(out);
+});
+
+// 重听历史里某首 (插队立即播)
+app.post('/api/history/replay', (req, res) => {
+  const { song } = req.body || {};
+  if (!song?.url) return res.status(400).json({ error: 'song.url 必填' });
+  state.setNowPlaying(song);
+  state.appendPlay({ ...song, source: song.source || 'replay' });
+  broadcast({ type: 'now_playing', nowPlaying: song, queue: state.get().queue });
+  res.json(song);
+});
+
+// 立即跳到队列里的某首播放 (插队)
+app.post('/api/queue/play/:index', (req, res) => {
+  const idx = parseInt(req.params.index, 10);
+  const removed = state.removeFromQueue(idx);
+  if (!removed) return res.status(404).json({ error: 'index 越界' });
+  state.setNowPlaying(removed);
+  state.appendPlay({ ...removed, source: removed.source || 'queue' });
+  broadcast({ type: 'now_playing', nowPlaying: removed, queue: state.get().queue });
+  res.json(removed);
 });
 
 app.get('/api/taste', async (req, res) => {
