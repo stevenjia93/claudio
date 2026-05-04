@@ -327,3 +327,85 @@ document.addEventListener('keydown', (e) => {
     chatForm.requestSubmit();
   }
 });
+
+// ============================================
+// 7. 鼠标动效: aurora 追光 + 气泡轨迹 + 点击涟漪 + 卡片内光斑
+// ============================================
+(function setupCursorFx() {
+  const bubbles = document.getElementById('bubbles');
+  if (!bubbles) return;
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const palette = ['#ff7eb6', '#b48cff', '#67d4ff', '#ffd989', '#ff9ec7'];
+
+  // 全局 aurora 跟随
+  let pendingX = window.innerWidth / 2;
+  let pendingY = window.innerHeight / 3;
+  let rafId = 0;
+  const flushAurora = () => {
+    document.body.style.setProperty('--mx', pendingX + 'px');
+    document.body.style.setProperty('--my', pendingY + 'px');
+    rafId = 0;
+  };
+
+  // 卡片内光斑
+  const cards = Array.from(document.querySelectorAll('.card'));
+  function updateCardSpot(card, x, y) {
+    const rect = card.getBoundingClientRect();
+    card.style.setProperty('--cmx', (x - rect.left) + 'px');
+    card.style.setProperty('--cmy', (y - rect.top)  + 'px');
+  }
+
+  // 气泡节流
+  let lastX = pendingX, lastY = pendingY, lastSpawn = 0;
+
+  function onMove(x, y) {
+    pendingX = x;
+    pendingY = y;
+    if (!rafId) rafId = requestAnimationFrame(flushAurora);
+
+    for (const c of cards) updateCardSpot(c, x, y);
+
+    if (reduced) return;
+    const dx = x - lastX, dy = y - lastY;
+    const dist = Math.hypot(dx, dy);
+    const now = performance.now();
+    if (dist > 14 && now - lastSpawn > 38) {
+      spawnBubble(x, y);
+      lastX = x; lastY = y; lastSpawn = now;
+    }
+  }
+
+  window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY), { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    const t = e.touches[0]; if (t) onMove(t.clientX, t.clientY);
+  }, { passive: true });
+
+  function spawnBubble(x, y) {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const c = palette[(Math.random() * palette.length) | 0];
+    const size = 6 + Math.random() * 10;
+    const drift = (Math.random() - 0.5) * 36;
+    b.style.cssText =
+      `left:${x + drift}px;top:${y}px;` +
+      `width:${size}px;height:${size}px;` +
+      `--c:${c};`;
+    bubbles.appendChild(b);
+    setTimeout(() => b.remove(), 1500);
+  }
+
+  // 点击涟漪 (任何位置)
+  window.addEventListener('click', (e) => {
+    if (reduced) return;
+    const r = document.createElement('div');
+    r.className = 'ripple';
+    r.style.left = e.clientX + 'px';
+    r.style.top  = e.clientY + 'px';
+    bubbles.appendChild(r);
+    setTimeout(() => r.remove(), 750);
+  }, { passive: true });
+
+  // 初始触发一次,让 aurora 不要从默认值跳开
+  flushAurora();
+})();

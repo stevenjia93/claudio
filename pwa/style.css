@@ -1,35 +1,48 @@
 /* ============================================
    Claudio · PWA 样式
-   风格: 黑底 · 手绘感 · 虚线 · 珊瑚/青 点缀
+   风格: Discord 玻璃 × 2006 QQ 空间复古光晕
+         鼠标牵引的极光 + 气泡轨迹 + 点击涟漪
    ============================================ */
 
 :root {
-  --bg: #0a0a0a;
-  --bg-elev: #121212;
+  --bg-deep: #07060f;
+  --bg: #0a0a14;
+  --bg-elev: rgba(20, 20, 32, 0.55);
   --ink: #e8e6e0;
   --ink-dim: #a8a49a;
   --muted: #6a6762;
-  --coral: #ff6b5e;
-  --coral-dim: #c75449;
-  --teal: #67d4b8;
-  --teal-dim: #4aa590;
-  --yellow: #f0c674;
-  --border: #2a2826;
+
+  --coral: #ff6b8e;
+  --coral-dim: #c75474;
+  --teal: #67d4ff;
+  --teal-dim: #4aa5d0;
+  --purple: #b48cff;
+  --purple-dim: #8a6cd8;
+  --pink: #ff9ec7;
+  --gold: #ffd989;
+  --border: #2a2836;
+  --border-hi: #3a3848;
 
   --font-zh: "LXGW WenKai", "霞鹜文楷", -apple-system, sans-serif;
   --font-en: "Fraunces", Georgia, serif;
   --font-hand: "Caveat", cursive;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* 由 JS 实时更新 */
+  --mx: 50vw;
+  --my: 30vh;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+html {
+  background: var(--bg-deep);
+  min-height: 100%;
 }
 
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-zh);
   font-size: 16px;
@@ -43,19 +56,120 @@ body {
   max-width: 720px;
   margin: 0 auto;
   position: relative;
+  z-index: 1;
+  background: transparent;
+  overflow-x: clip;
 }
 
-/* 胶片颗粒感 */
+/* ============================================
+   背景层
+   ============================================ */
+
+/* 极光: 跟随鼠标的渐变光斑 */
+.aurora {
+  position: fixed;
+  inset: -10vmax;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(720px circle at var(--mx) var(--my),
+      rgba(255, 126, 182, 0.22) 0%,
+      rgba(180, 140, 255, 0.13) 22%,
+      rgba(103, 212, 255, 0.07) 45%,
+      transparent 65%),
+    radial-gradient(1100px circle at calc(100vw - var(--mx)) calc(100vh - var(--my)),
+      rgba(255, 217, 137, 0.07) 0%,
+      rgba(180, 140, 255, 0.04) 30%,
+      transparent 60%);
+  filter: blur(8px);
+  transition: background 0.16s linear;
+}
+
+/* 远景星点 */
+.stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    radial-gradient(1.3px 1.3px at 22% 31%, rgba(255,255,255,0.7), transparent 50%),
+    radial-gradient(1.3px 1.3px at 71% 62%, rgba(255,158,199,0.55), transparent 50%),
+    radial-gradient(1px 1px at 41% 81%, rgba(180,140,255,0.55), transparent 50%),
+    radial-gradient(1px 1px at 86% 16%, rgba(103,212,255,0.55), transparent 50%),
+    radial-gradient(1.3px 1.3px at 11% 71%, rgba(255,255,255,0.45), transparent 50%),
+    radial-gradient(1px 1px at 60% 25%, rgba(255,217,137,0.55), transparent 50%),
+    radial-gradient(1.3px 1.3px at 92% 92%, rgba(255,158,199,0.45), transparent 50%),
+    radial-gradient(1px 1px at 33% 12%, rgba(103,212,255,0.4), transparent 50%);
+  background-size: 100% 100%;
+  animation: twinkle 7s ease-in-out infinite;
+  opacity: 0.75;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.45; transform: translateY(0); }
+  50%      { opacity: 0.9;  transform: translateY(-3px); }
+}
+
+/* 胶片颗粒 */
 .grain {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.04;
+  opacity: 0.05;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' /></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
   z-index: 1;
+  mix-blend-mode: overlay;
 }
 
-/* ——— 顶部 ——— */
+/* ============================================
+   鼠标气泡 + 涟漪 (JS 注入子元素)
+   ============================================ */
+.bubbles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), var(--c, var(--coral)) 75%);
+  box-shadow: 0 0 14px var(--c, var(--coral)), inset 0 0 4px rgba(255,255,255,0.6);
+  opacity: 0;
+  animation: bubble-rise 1.4s ease-out forwards;
+  mix-blend-mode: screen;
+  transform: translate(-50%, -50%);
+}
+@keyframes bubble-rise {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  18%  { opacity: 0.95; }
+  100% { transform: translate(-50%, calc(-50% - 70px)) scale(1.3); opacity: 0; }
+}
+
+.ripple {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--coral);
+  box-shadow: 0 0 14px var(--coral);
+  pointer-events: none;
+  z-index: 999;
+  animation: ripple-out 0.7s ease-out forwards;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+}
+@keyframes ripple-out {
+  0%   { width: 8px;  height: 8px;  opacity: 1; }
+  100% { width: 130px; height: 130px; opacity: 0; }
+}
+
+/* ============================================
+   顶部
+   ============================================ */
 .top {
   display: flex;
   justify-content: space-between;
@@ -63,13 +177,11 @@ body {
   margin-bottom: 32px;
   padding-bottom: 20px;
   border-bottom: 1px dashed var(--border);
+  position: relative;
+  z-index: 2;
 }
 
-.brand {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
+.brand { display: flex; align-items: flex-start; gap: 14px; }
 
 .num {
   font-family: var(--font-hand);
@@ -78,6 +190,15 @@ body {
   line-height: 0.9;
   display: inline-block;
   transform: rotate(-4deg);
+  text-shadow: 0 0 16px rgba(255, 107, 142, 0.4);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              text-shadow 0.3s, color 0.3s;
+  cursor: default;
+}
+.num:hover {
+  transform: rotate(-12deg) scale(1.15);
+  color: var(--pink);
+  text-shadow: 0 0 24px var(--coral), 0 0 6px var(--pink);
 }
 
 h1 {
@@ -87,6 +208,16 @@ h1 {
   font-size: 32px;
   margin: 0;
   letter-spacing: -0.01em;
+  background: linear-gradient(120deg, var(--ink) 0%, var(--pink) 45%, var(--purple) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-shine 7s linear infinite;
+}
+@keyframes text-shine {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 h2 {
@@ -97,18 +228,8 @@ h2 {
   letter-spacing: -0.005em;
 }
 
-.tag {
-  margin: 2px 0 0;
-  color: var(--ink-dim);
-  font-size: 13px;
-}
-
-.en {
-  font-family: var(--font-en);
-  font-style: italic;
-  font-weight: 300;
-  color: var(--ink-dim);
-}
+.tag { margin: 2px 0 0; color: var(--ink-dim); font-size: 13px; }
+.en  { font-family: var(--font-en); font-style: italic; font-weight: 300; color: var(--ink-dim); }
 
 /* 状态徽章 */
 .pills {
@@ -126,23 +247,84 @@ h2 {
   border: 1px dashed currentColor;
   letter-spacing: 0.05em;
   text-transform: lowercase;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: default;
+}
+.pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 14px currentColor;
+}
+.pill-coral { color: var(--coral); }
+.pill-teal  { color: var(--teal); }
+.pill-dim   { color: var(--muted); }
+.pill.live {
+  background: rgba(103, 212, 255, 0.10);
+  color: var(--teal);
+  border-style: solid;
+  animation: pill-pulse 2.2s ease-in-out infinite;
+}
+@keyframes pill-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--teal); }
+  50%      { box-shadow: 0 0 16px var(--teal); }
 }
 
-.pill-coral { color: var(--coral); }
-.pill-teal { color: var(--teal); }
-.pill-dim { color: var(--muted); }
-.pill.live { background: rgba(103, 212, 184, 0.08); color: var(--teal); }
-
-/* ——— 卡片通用 ——— */
+/* ============================================
+   卡片 — Discord 玻璃 + 入场动画
+   ============================================ */
 .card {
+  --cmx: 50%;
+  --cmy: 50%;
+
   background: var(--bg-elev);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
   border: 1px dashed var(--border);
-  border-radius: 2px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 22px;
   margin-bottom: 20px;
   position: relative;
+  isolation: isolate;
   z-index: 2;
+  transition: transform 0.25s cubic-bezier(.2,.7,.3,1),
+              border-color 0.3s,
+              box-shadow 0.35s;
+  animation: card-in 0.65s cubic-bezier(.2,.7,.3,1) backwards;
 }
+.card-now   { animation-delay: 0.05s; }
+.card-dj    { animation-delay: 0.10s; }
+.card-queue { animation-delay: 0.15s; }
+.card-chat  { animation-delay: 0.20s; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(380px circle at var(--cmx) var(--cmy),
+    rgba(255, 126, 182, 0.14),
+    rgba(180, 140, 255, 0.06) 35%,
+    transparent 65%);
+  opacity: 0;
+  transition: opacity 0.35s;
+  z-index: 0;
+}
+
+.card > * { position: relative; z-index: 1; }
+
+.card:hover {
+  border-color: var(--border-hi);
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 42px -22px rgba(255, 126, 182, 0.40),
+    0 0 0 1px rgba(180, 140, 255, 0.14);
+}
+.card:hover::before { opacity: 1; }
 
 .card-header {
   display: flex;
@@ -150,35 +332,22 @@ h2 {
   gap: 12px;
   margin-bottom: 16px;
 }
-
-.card-header > div {
-  flex: 1;
-}
-
-.card-header .num {
-  font-size: 28px;
-}
-
-.card-header h2 {
-  font-size: 18px;
-}
-
-.card-header .en {
-  font-size: 12px;
-}
+.card-header > div { flex: 1; }
+.card-header .num { font-size: 28px; }
+.card-header h2 { font-size: 18px; }
+.card-header .en { font-size: 12px; }
 
 .count {
   color: var(--muted);
   font-size: 12px;
   padding-top: 8px;
+  font-family: var(--font-mono);
 }
 
-/* ——— 现在播放 ——— */
-.now-body {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
+/* ============================================
+   现在播放
+   ============================================ */
+.now-body { display: flex; gap: 20px; align-items: flex-start; }
 
 .artwork {
   flex: 0 0 100px;
@@ -186,27 +355,39 @@ h2 {
   height: 100px;
   color: var(--coral-dim);
   opacity: 0.6;
+  position: relative;
+  filter: drop-shadow(0 0 8px rgba(255,107,142,0.2));
   transition: all 0.4s;
 }
-
 .artwork svg { width: 100%; height: 100%; }
 
 .card-now.playing .artwork {
   color: var(--coral);
   opacity: 1;
   animation: wobble 8s ease-in-out infinite;
+  filter: drop-shadow(0 0 18px rgba(255,107,142,0.6));
 }
-
+.card-now.playing::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(220px circle at 60px 70px,
+    rgba(255, 107, 142, 0.14), transparent 65%);
+  animation: now-pulse 3.6s ease-in-out infinite;
+  z-index: 0;
+}
+@keyframes now-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
 @keyframes wobble {
   0%, 100% { transform: rotate(-1deg); }
-  50% { transform: rotate(1deg); }
+  50%      { transform: rotate(1deg); }
 }
 
-.track-info {
-  flex: 1;
-  min-width: 0;
-}
-
+.track-info { flex: 1; min-width: 0; }
 .track-info h3 {
   margin: 0 0 4px;
   font-family: var(--font-zh);
@@ -217,25 +398,31 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .muted { color: var(--ink-dim); }
 
-.progress {
-  margin: 16px 0 12px;
-}
+.progress { margin: 16px 0 12px; }
 
 .progress-bar {
-  height: 3px;
+  height: 4px;
   background: var(--border);
-  border-radius: 2px;
+  border-radius: 999px;
   overflow: hidden;
+  position: relative;
 }
 
 .progress-fill {
   height: 100%;
   width: 0%;
-  background: var(--coral);
+  background: linear-gradient(90deg, var(--coral) 0%, var(--pink) 40%, var(--purple) 75%, var(--teal) 100%);
+  background-size: 220% 100%;
+  animation: progress-shine 4s linear infinite;
   transition: width 0.2s;
+  border-radius: inherit;
+  box-shadow: 0 0 14px rgba(255,126,182,0.55);
+}
+@keyframes progress-shine {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
 }
 
 .timestamps {
@@ -244,7 +431,6 @@ h2 {
   margin-top: 6px;
   font-size: 11px;
 }
-
 .mono { font-family: var(--font-mono); }
 
 .controls {
@@ -254,45 +440,85 @@ h2 {
   margin-top: 4px;
 }
 
+/* ============================================
+   按钮 — 镜面扫光
+   ============================================ */
 .ctrl {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
   border: 1px dashed var(--border);
   color: var(--ink);
-  padding: 8px 18px;
+  padding: 9px 18px;
   cursor: pointer;
   font-family: var(--font-zh);
   font-size: 15px;
-  transition: all 0.15s;
-  border-radius: 2px;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s, color 0.2s, border-color 0.2s, box-shadow 0.25s, background 0.25s;
 }
-
+.ctrl::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
 .ctrl:hover {
   border-color: var(--coral);
   color: var(--coral);
   border-style: solid;
+  background: rgba(255, 107, 142, 0.06);
+  transform: translateY(-1px);
+  box-shadow:
+    0 6px 20px -8px var(--coral),
+    0 0 0 1px rgba(255,107,142,0.25);
 }
+.ctrl:hover::before { left: 130%; }
+.ctrl:active { transform: translateY(0) scale(0.97); }
 
 .ctrl-main {
-  padding: 8px 28px;
+  padding: 9px 28px;
   font-size: 18px;
   color: var(--coral);
   border-color: var(--coral-dim);
 }
 
-/* ——— DJ 说 ——— */
+/* ============================================
+   DJ 说
+   ============================================ */
 .card-dj {
-  background: linear-gradient(135deg, var(--bg-elev) 0%, rgba(255, 107, 94, 0.03) 100%);
+  background:
+    radial-gradient(600px circle at 100% 0%, rgba(255, 107, 142, 0.10), transparent 60%),
+    var(--bg-elev);
   border-color: var(--coral-dim);
 }
 
 blockquote {
   margin: 0;
-  padding: 0 0 12px;
+  padding: 4px 0 12px 16px;
   font-size: 17px;
   line-height: 1.75;
   color: var(--ink);
   border-left: 2px dashed var(--coral);
-  padding-left: 16px;
+  position: relative;
+}
+blockquote::before {
+  content: "“";
+  position: absolute;
+  left: 4px;
+  top: -22px;
+  font-family: var(--font-en);
+  font-size: 56px;
+  color: var(--coral);
+  opacity: 0.25;
+  pointer-events: none;
 }
 
 .reason {
@@ -302,11 +528,12 @@ blockquote {
   font-family: var(--font-mono);
   padding-left: 16px;
 }
-
 .reason:empty { display: none; }
 .reason:not(:empty)::before { content: "// "; color: var(--coral-dim); }
 
-/* ——— 队列 ——— */
+/* ============================================
+   队列
+   ============================================ */
 .queue-list {
   list-style: none;
   padding: 0;
@@ -314,33 +541,33 @@ blockquote {
 }
 
 .queue-list li {
-  padding: 10px 0;
+  padding: 10px 8px;
   border-bottom: 1px dashed var(--border);
   display: flex;
   align-items: baseline;
   gap: 12px;
   font-size: 14px;
+  border-radius: 8px;
+  transition: background 0.25s, transform 0.25s, padding 0.25s;
+  cursor: default;
 }
-
+.queue-list li:hover {
+  background: linear-gradient(90deg, rgba(180,140,255,0.10), rgba(180,140,255,0) 80%);
+  transform: translateX(4px);
+  padding-left: 12px;
+}
 .queue-list li:last-child { border-bottom: none; }
 
 .queue-list .idx {
   font-family: var(--font-hand);
   color: var(--teal);
-  font-size: 20px;
-  min-width: 20px;
+  font-size: 22px;
+  min-width: 22px;
   line-height: 1;
+  text-shadow: 0 0 10px rgba(103,212,255,0.45);
 }
-
-.queue-list .song {
-  flex: 1;
-  color: var(--ink);
-}
-
-.queue-list .artist {
-  color: var(--ink-dim);
-  font-size: 12px;
-}
+.queue-list .song { flex: 1; color: var(--ink); }
+.queue-list .artist { color: var(--ink-dim); font-size: 12px; }
 
 .queue-empty {
   color: var(--muted);
@@ -349,7 +576,9 @@ blockquote {
   font-size: 13px;
 }
 
-/* ——— 聊天 ——— */
+/* ============================================
+   聊天
+   ============================================ */
 #chat-form {
   display: flex;
   flex-direction: column;
@@ -357,21 +586,26 @@ blockquote {
 }
 
 #chat-input {
-  background: var(--bg);
+  background: rgba(10, 10, 22, 0.6);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   border: 1px dashed var(--border);
-  border-radius: 2px;
+  border-radius: 10px;
   padding: 12px 14px;
   color: var(--ink);
   font-family: var(--font-zh);
   font-size: 15px;
   resize: vertical;
   outline: none;
-  transition: border 0.2s;
+  transition: border 0.2s, box-shadow 0.3s, background 0.3s;
 }
-
 #chat-input:focus {
   border-color: var(--teal);
   border-style: solid;
+  background: rgba(10, 10, 22, 0.78);
+  box-shadow:
+    0 0 0 3px rgba(103,212,255,0.14),
+    0 0 24px -8px var(--teal);
 }
 
 .ctrl-send {
@@ -379,16 +613,15 @@ blockquote {
   color: var(--teal);
   border-color: var(--teal-dim);
 }
-
 .ctrl-send:hover {
   border-color: var(--teal);
   color: var(--teal);
+  background: rgba(103, 212, 255, 0.06);
+  box-shadow:
+    0 6px 20px -8px var(--teal),
+    0 0 0 1px rgba(103,212,255,0.25);
 }
-
-.ctrl-send:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
+.ctrl-send:disabled { opacity: 0.5; cursor: wait; }
 
 .chat-history {
   list-style: none;
@@ -397,26 +630,27 @@ blockquote {
   max-height: 280px;
   overflow-y: auto;
 }
-
 .chat-history li {
   padding: 10px 12px;
   margin-bottom: 6px;
   font-size: 14px;
-  border-radius: 2px;
+  border-radius: 10px;
   line-height: 1.6;
+  animation: chat-in 0.4s cubic-bezier(.2,.7,.3,1);
 }
-
+@keyframes chat-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .chat-history .user {
-  background: rgba(103, 212, 184, 0.06);
+  background: linear-gradient(90deg, rgba(103,212,255,0.12), rgba(103,212,255,0.02));
   border-left: 2px solid var(--teal-dim);
 }
-
 .chat-history .assistant {
-  background: rgba(255, 107, 94, 0.04);
+  background: linear-gradient(90deg, rgba(255,107,142,0.10), rgba(180,140,255,0.04));
   border-left: 2px solid var(--coral-dim);
-  color: var(--ink-dim);
+  color: var(--ink);
 }
-
 .chat-history .meta {
   display: block;
   font-family: var(--font-mono);
@@ -427,16 +661,24 @@ blockquote {
   letter-spacing: 0.08em;
 }
 
-/* ——— 底部 ——— */
+/* ============================================
+   底部
+   ============================================ */
 footer {
   margin-top: 40px;
   padding-top: 20px;
   text-align: center;
   border-top: 1px dashed var(--border);
   font-size: 11px;
+  position: relative;
+  z-index: 2;
 }
 
-/* ——— 响应式 ——— */
+::selection { background: rgba(255, 107, 142, 0.35); color: #fff; }
+
+/* ============================================
+   响应式
+   ============================================ */
 @media (max-width: 540px) {
   body { padding: 20px 16px 40px; }
   .now-body { flex-direction: column; align-items: stretch; }
@@ -445,8 +687,27 @@ footer {
   .num { font-size: 34px; }
 }
 
-/* ——— 滚动条,轻量 ——— */
+/* ============================================
+   滚动条
+   ============================================ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--coral-dim), var(--purple-dim));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--coral), var(--purple));
+}
+
+/* ============================================
+   尊重系统设置 — 关掉花哨动画
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .aurora { display: none; }
+}
