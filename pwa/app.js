@@ -222,7 +222,7 @@ btnPlay.addEventListener('click', () => {
   }
   // 没 src 但 nowPlaying 还在 — 重新装 src 重播,不要去 /api/next 把当前歌弄丢
   if (currentSong?.url) {
-    audio.src = currentSong.url;
+    audio.src = proxiedAudioUrl(currentSong.url);
     audio.play().catch(err => console.warn('play 被挡:', err.message));
     return;
   }
@@ -487,6 +487,16 @@ audio.addEventListener('error', () => {
   console.warn('[music] 歌加载失败,跳下一首');
   advanceByMode();
 });
+
+// 给 <audio crossorigin="anonymous"> 喂 url 必须带 CORS header.
+// netease 等 CDN 直链不带 CORS, 包到 /api/proxy/audio 转一手 (server 端加 CORS).
+// 本地相对路径 (/api/proxy/yt/...) 不动 — server.js 已经直接给那条加了 CORS header.
+function proxiedAudioUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  if (rawUrl.startsWith('/')) return rawUrl;       // 已经走本地 proxy
+  return '/api/proxy/audio?url=' + encodeURIComponent(rawUrl);
+}
+
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   if (!progressBar.classList.contains('dragging')) {
@@ -514,7 +524,7 @@ async function playNext() {
       console.warn('[music] 没有直链,跳过:', song.song);
       return playNext();
     }
-    audio.src = song.url;
+    audio.src = proxiedAudioUrl(song.url);
     await audio.play().catch(err => console.warn('audio play 被挡:', err.message));
   } catch (e) {
     console.error('playNext 出错:', e);
@@ -528,7 +538,7 @@ async function jumpToQueueIndex(idx) {
     const r = await fetch(`/api/queue/play/${idx}`, { method: 'POST' });
     const np = await r.json();
     if (np?.url) {
-      audio.src = np.url;
+      audio.src = proxiedAudioUrl(np.url);
       await audio.play().catch(() => {});
     }
   } catch (e) {
@@ -829,7 +839,7 @@ function renderLiked() {
         });
         const np = await r.json();
         if (np?.url) {
-          audio.src = np.url;
+          audio.src = proxiedAudioUrl(np.url);
           await audio.play().catch(()=>{});
         }
       } catch (e) { console.warn('[liked replay]', e.message); }
@@ -877,7 +887,7 @@ async function refreshHistory() {
         });
         const np = await r.json();
         if (np?.url) {
-          audio.src = np.url;
+          audio.src = proxiedAudioUrl(np.url);
           await audio.play().catch(()=>{});
         }
       } catch (e) { console.warn('[replay]', e.message); }
@@ -1323,4 +1333,76 @@ document.addEventListener('keydown', (e) => {
   // 对齐到下一秒边界, 看起来跟系统时间同步
   const driftToNextSecond = 1000 - (Date.now() % 1000);
   setTimeout(() => { tick(); setInterval(tick, 1000); }, driftToNextSecond);
+})();
+
+// ============================================
+// 13. 音频可视化 — 用 Web Audio analyser 提取 bass 强度,
+//      实时驱动专辑封面的 scale / 旋转 / 阴影. 不加新 UI 元素, 直接接管
+//      原本的 cover-pulse CSS 动画 (JS inline style 自然覆盖 CSS).
+//      浏览器自动播放策略要求 AudioContext 在用户手势后才能开, 我们等
+//      audio 第一次 play 事件触发再 init.
+// ============================================
+(function setupAudioVisualizer() {
+  const artwork = document.querySelector('.card-now .artwork');
+  if (!artwork) return;
+  const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (REDUCE_MOTION) return;
+
+  let audioCtx = null;
+  let analyser = null;
+  let bins = null;
+  let bass = 0;             // 0-1, 低通后的 bass 强度
+  let initFailed = false;
+
+  function lazyInit() {
+    if (audioCtx || initFailed) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaElementSource(audio);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.7;
+      bins = new Uint8Array(analyser.frequencyBinCount);
+      src.connect(analyser);
+      analyser.connect(audioCtx.destination);   // 别忘了, 不然就没声音了
+      requestAnimationFrame(tick);
+    } catch (e) {
+      console.warn('[viz] Web Audio init 失败, fallback CSS pulse:', e.message);
+      initFailed = true;
+    }
+  }
+
+  audio.addEventListener('play', () => {
+    lazyInit();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  });
+
+  function tick() {
+    requestAnimationFrame(tick);
+    if (!analyser) return;
+    // audio 暂停时清掉 inline style, 让 CSS 的 cover-pulse 重新接手
+    if (audio.paused) {
+      if (artwork.style.transform) {
+        artwork.style.transform = '';
+        artwork.style.boxShadow = '';
+        bass = 0;
+      }
+      return;
+    }
+    analyser.getByteFrequencyData(bins);
+    // Bass = 前 8 个 bin 的均值 (大约 0-1500 Hz @ 44.1kHz, 落鼓+贝斯区间)
+    let sum = 0;
+    for (let i = 0; i < 8; i++) sum += bins[i];
+    const raw = sum / 8 / 255;       // 0-1
+    // 软低通 — 防鼓点瞬时跳得太炸
+    bass = bass * 0.55 + raw * 0.45;
+
+    // 映射到 transform + box-shadow
+    const scale = 1 + bass * 0.07;             // 1.00 - 1.07
+    const rot   = (bass - 0.5) * 1.4;          // -0.7° - +0.7°
+    artwork.style.transform = `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
+    artwork.style.boxShadow =
+      `0 ${(6 + bass * 14).toFixed(1)}px ${(22 + bass * 22).toFixed(0)}px -8px rgba(255,107,142,${(0.40 + bass * 0.35).toFixed(2)}),` +
+      ` 0 0 0 1px rgba(255,255,255,${(0.05 + bass * 0.06).toFixed(2)}) inset`;
+  }
 })();

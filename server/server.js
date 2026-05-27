@@ -261,6 +261,8 @@ app.get('/api/proxy/yt/:videoId', async (req, res) => {
     const { stream, type } = await ytmusic.streamAudio(videoId);
     res.setHeader('Content-Type', type === 'webm' ? 'audio/webm' : 'audio/mp4');
     res.setHeader('Cache-Control', 'no-store');
+    // Web Audio analyser 必须看到 CORS header 才能拿到真实音频数据 (否则全 0)
+    res.setHeader('Access-Control-Allow-Origin', '*');
     stream.pipe(res);
     stream.on('error', e => {
       console.warn(`[yt proxy] stream ${videoId}:`, e.message);
@@ -271,6 +273,54 @@ app.get('/api/proxy/yt/:videoId', async (req, res) => {
     });
   } catch (e) {
     console.warn(`[yt proxy] ${videoId}:`, e.message);
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// ——— API: 通用音频 CORS 代理 ———
+// netease 等 CDN 直链不带 CORS header → 前端 <audio crossorigin> 会拒绝播,
+// Web Audio analyser 也拿不到数据. 这里中转一下加 CORS, 顺手处理 Range 让 seek 工作.
+// 白名单只放音乐 CDN, 防当成开放 proxy 被滥用.
+const AUDIO_PROXY_HOSTS = /\.(music\.126\.net|music\.163\.com|qq\.com|googlevideo\.com)$/i;
+app.get('/api/proxy/audio', async (req, res) => {
+  const target = req.query.url;
+  if (!target || typeof target !== 'string' || !/^https?:\/\//.test(target)) {
+    return res.status(400).json({ error: 'url 必填 (http/https)' });
+  }
+  let host;
+  try { host = new URL(target).hostname; }
+  catch { return res.status(400).json({ error: 'url 解析失败' }); }
+  if (!AUDIO_PROXY_HOSTS.test(host)) {
+    return res.status(403).json({ error: '不在白名单的 host: ' + host });
+  }
+  try {
+    const upstream = await fetch(target, {
+      headers: {
+        // 部分音乐 CDN 看 Referer 防盗链 — 给一个常见值
+        Referer: 'https://music.163.com/',
+        'User-Agent': 'Mozilla/5.0',
+        // 透传客户端 Range 让 seek 工作
+        ...(req.headers.range ? { Range: req.headers.range } : {}),
+      },
+    });
+    if (!upstream.ok && upstream.status !== 206) {
+      return res.status(upstream.status).send(`upstream ${upstream.status}`);
+    }
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg');
+    const len = upstream.headers.get('content-length');
+    if (len) res.setHeader('Content-Length', len);
+    const range = upstream.headers.get('content-range');
+    if (range) res.setHeader('Content-Range', range);
+    res.setHeader('Accept-Ranges', upstream.headers.get('accept-ranges') || 'bytes');
+    res.setHeader('Cache-Control', 'no-store');
+    if (upstream.status === 206) res.status(206);
+    const { Readable } = await import('node:stream');
+    const nodeStream = Readable.fromWeb(upstream.body);
+    nodeStream.pipe(res);
+    req.on('close', () => { try { nodeStream.destroy(); } catch {} });
+  } catch (e) {
+    console.warn(`[audio proxy] ${target.slice(0, 80)}:`, e.message);
     res.status(502).json({ error: e.message });
   }
 });
