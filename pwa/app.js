@@ -45,6 +45,7 @@ let lyrics = [];          // [{t: seconds, text: string}]
 let currentLyricIndex = -1;
 let feedback = { liked: [], disliked: [] };
 let playMode = 'sequential';
+let chatInflight = false;
 
 // ============================================
 // 1. WebSocket
@@ -112,6 +113,7 @@ function handleWs(msg) {
   }
 }
 
+if (btnQueueClear) btnQueueClear.disabled = true; // 初始空, WS hello 回来 renderQueue 会重算
 connectWs();
 
 // ============================================
@@ -125,7 +127,8 @@ chatForm.addEventListener('submit', async (e) => {
   autoPlayArmed = true;
   appendChat('user', text);
   chatInput.value = '';
-  btnSend.disabled = true;
+  chatInflight = true;
+  reflectInflight();
 
   try {
     const res = await fetch('/api/chat', {
@@ -156,7 +159,8 @@ chatForm.addEventListener('submit', async (e) => {
   } catch (err) {
     appendChat('assistant', `出错了: ${err.message}`);
   } finally {
-    btnSend.disabled = false;
+    chatInflight = false;
+    reflectInflight();
     chatInput.focus();
   }
 });
@@ -258,6 +262,48 @@ btnMode.addEventListener('click', async () => {
   }
 });
 
+btnQueueClear.addEventListener('click', async () => {
+  if (currentQueue.length === 0) return;
+  try {
+    const r = await fetch('/api/queue', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queue: [] })
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`HTTP ${r.status}: ${t.slice(0, 120)}`);
+    }
+    // 服务端广播 queue_update, 现有路径处理 UI
+  } catch (e) {
+    appendChat('assistant', `清空失败: ${e.message}`);
+  }
+});
+
+btnQueueRefresh.addEventListener('click', async () => {
+  if (chatInflight) return;
+  autoPlayArmed = true;
+  appendChat('user', '换一批不一样的');
+  chatInflight = true;
+  reflectInflight();
+  try {
+    const r = await fetch('/api/queue/refresh', { method: 'POST' });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`HTTP ${r.status}: ${t.slice(0, 120)}`);
+    }
+    const data = await r.json();
+    if (data.kind === 'chat') {
+      appendChat('assistant', data.say, data.reason);
+    }
+  } catch (e) {
+    appendChat('assistant', `换一批失败: ${e.message}`);
+  } finally {
+    chatInflight = false;
+    reflectInflight();
+  }
+});
+
 // 当前歌在 feedback 里的状态 (♥ / ✕ / 无)
 function feedbackStateForCurrent() {
   if (!currentSong?.song) return null;
@@ -288,6 +334,11 @@ function reflectPlayModeUI() {
   btnMode.title = label;
   btnMode.setAttribute('aria-label', label);
   btnMode.classList.toggle('active', playMode !== 'sequential');
+}
+
+function reflectInflight() {
+  btnSend.disabled = chatInflight;
+  if (btnQueueRefresh) btnQueueRefresh.disabled = chatInflight;
 }
 
 audio.addEventListener('play', () => {
@@ -510,22 +561,23 @@ function renderQueue(queue) {
   queueList.innerHTML = '';
   if (currentQueue.length === 0) {
     queueList.innerHTML = '<li class="queue-empty">队列是空的</li>';
-    return;
+  } else {
+    currentQueue.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.draggable = true;
+      li.dataset.idx = String(i);
+      li.innerHTML = `
+        <span class="q-grip" title="拖动重排">⋮⋮</span>
+        <span class="idx">${i + 1}.</span>
+        <span class="song">${escapeHtml(item.song)}</span>
+        <span class="artist">${escapeHtml(item.artist)}</span>
+        <button class="q-remove" title="从队列移除">✕</button>
+      `;
+      bindQueueItem(li, i);
+      queueList.appendChild(li);
+    });
   }
-  currentQueue.forEach((item, i) => {
-    const li = document.createElement('li');
-    li.draggable = true;
-    li.dataset.idx = String(i);
-    li.innerHTML = `
-      <span class="q-grip" title="拖动重排">⋮⋮</span>
-      <span class="idx">${i + 1}.</span>
-      <span class="song">${escapeHtml(item.song)}</span>
-      <span class="artist">${escapeHtml(item.artist)}</span>
-      <button class="q-remove" title="从队列移除">✕</button>
-    `;
-    bindQueueItem(li, i);
-    queueList.appendChild(li);
-  });
+  if (btnQueueClear) btnQueueClear.disabled = currentQueue.length === 0;
 }
 
 // —— 单个队列项: 删除按钮 + HTML5 拖拽重排 ——
