@@ -78,17 +78,49 @@ async function resolvePlayList(playNames) {
   return resolved;
 }
 
+// 走一次 Claude 流水线: 解析歌名 + TTS + 广播 + 返回 brain 结果
+// 抽出来给 /api/chat 和 /api/queue/refresh 复用
+async function runChatTurn(text) {
+  state.appendMessage('user', text);
+  const prompt = await assemble(text);
+  const brain = MOCK_CLAUDE ? await claude.mockInvoke(prompt) : await claude.invoke(prompt);
+
+  state.appendMessage('assistant', brain.say);
+
+  const itemsP = resolvePlayList(brain.play);
+  const audioP = brain.say
+    ? tts.synthesize(brain.say).catch(e => {
+        console.warn('[tts] 合成挂了:', e.message);
+        return null;
+      })
+    : Promise.resolve(null);
+  const [items, audioUrl] = await Promise.all([itemsP, audioP]);
+  state.pushQueue(items);
+  items.forEach(it => state.appendPlay({ ...it, source: 'claude' }));
+
+  broadcast({
+    type: 'dj_broadcast',
+    say: brain.say,
+    reason: brain.reason,
+    segue: brain.segue,
+    audio_url: audioUrl,
+    queue: state.get().queue
+  });
+
+  return { kind: 'chat', ...brain, resolved: items, audio_url: audioUrl };
+}
+
 // ——— API: 聊天 ———
 app.post('/api/chat', async (req, res) => {
   const { text } = req.body || {};
   if (!text) return res.status(400).json({ error: 'text 必填' });
 
-  state.appendMessage('user', text);
   const decision = route(text);
 
   try {
     // 1) 控制命令
     if (decision.kind === 'control') {
+      state.appendMessage('user', text);
       broadcast({ type: 'control', cmd: decision.payload.cmd });
       state.appendMessage('assistant', `[${decision.payload.cmd}]`);
       return res.json({ kind: 'control', cmd: decision.payload.cmd });
@@ -96,6 +128,7 @@ app.post('/api/chat', async (req, res) => {
 
     // 2) 直连放歌
     if (decision.kind === 'play_direct') {
+      state.appendMessage('user', text);
       const items = await resolvePlayList([decision.payload.query]);
       state.pushQueue(items);
       items.forEach(it => state.appendPlay({ ...it, source: 'direct' }));
@@ -105,33 +138,8 @@ app.post('/api/chat', async (req, res) => {
     }
 
     // 3) 自然语言: 走 Claude 大脑
-    const prompt = await assemble(decision.payload.text);
-    const brain = MOCK_CLAUDE ? await claude.mockInvoke(prompt) : await claude.invoke(prompt);
-
-    state.appendMessage('assistant', brain.say);
-
-    // 歌曲解析和 TTS 合成同时跑,谁慢谁就是瓶颈,不再串行
-    const itemsP = resolvePlayList(brain.play);
-    const audioP = brain.say
-      ? tts.synthesize(brain.say).catch(e => {
-          console.warn('[tts] 合成挂了:', e.message);
-          return null;
-        })
-      : Promise.resolve(null);
-    const [items, audioUrl] = await Promise.all([itemsP, audioP]);
-    state.pushQueue(items);
-    items.forEach(it => state.appendPlay({ ...it, source: 'claude' }));
-
-    broadcast({
-      type: 'dj_broadcast',
-      say: brain.say,
-      reason: brain.reason,
-      segue: brain.segue,
-      audio_url: audioUrl,       // 有值 → 前端播这个;null → 前端 fallback 浏览器 TTS
-      queue: state.get().queue
-    });
-
-    res.json({ kind: 'chat', ...brain, resolved: items, audio_url: audioUrl });
+    const result = await runChatTurn(decision.payload.text);
+    res.json(result);
   } catch (e) {
     console.error('[chat] 出错:', e);
     res.status(500).json({ error: e.message });
@@ -257,6 +265,22 @@ app.put('/api/mode', (req, res) => {
   }
   broadcast({ type: 'mode_update', playMode: mode });
   res.json({ ok: true, mode });
+});
+
+// ——— API: 换一批 (清队列 + 让 Claude 重新推) ———
+app.post('/api/queue/refresh', async (req, res) => {
+  // 1) 先清队列, 广播让前端立即看到队列空
+  state.setQueue([]);
+  broadcast({ type: 'queue_update', queue: [] });
+
+  // 2) 走一次 chat 流水线, 固定 prompt
+  try {
+    const result = await runChatTurn('换一批不一样的');
+    res.json(result);
+  } catch (e) {
+    console.error('[refresh] 出错:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ——— API: like / dislike / clear 反馈 ———
