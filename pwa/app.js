@@ -1265,3 +1265,26 @@ document.addEventListener('keydown', (e) => {
   setTimeout(spawn, 2500);
   schedule();
 })();
+
+// ============================================
+// 11. 电台时钟 — 顶部 brand 下方, 一秒一跳, 冒号呼吸
+// ============================================
+(function setupClock() {
+  const elClock = document.getElementById('t-clock');
+  const elDate = document.getElementById('t-date');
+  if (!elClock || !elDate) return;
+
+  const dayCh = ['周日','周一','周二','周三','周四','周五','周六'];
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function tick() {
+    const d = new Date();
+    // hh:mm:ss, 冒号有自己的 span 方便 CSS 加呼吸动画
+    elClock.innerHTML = `${pad(d.getHours())}<span class="colon">:</span>${pad(d.getMinutes())}<span class="colon">:</span>${pad(d.getSeconds())}`;
+    elDate.textContent = `${d.getMonth() + 1}月${d.getDate()}日 ${dayCh[d.getDay()]}`;
+  }
+  tick();
+  // 对齐到下一秒边界, 看起来跟系统时间同步
+  const driftToNextSecond = 1000 - (Date.now() % 1000);
+  setTimeout(() => { tick(); setInterval(tick, 1000); }, driftToNextSecond);
+})();
