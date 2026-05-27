@@ -975,6 +975,7 @@ blockquote {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed var(--border);
+  flex-shrink: 0;   /* 防长输入时被 chat-history 挤塌 */
 }
 
 #chat-input {
