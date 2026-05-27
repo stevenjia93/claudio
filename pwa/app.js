@@ -1267,7 +1267,43 @@ document.addEventListener('keydown', (e) => {
 })();
 
 // ============================================
-// 11. 电台时钟 — 顶部 brand 下方, 一秒一跳, 冒号呼吸
+// 11. 天色 — 按当前小时切 overlay 色 (CSS 自己 60s 平滑过渡)
+//     夜深 → 拂晓暖 → 白天清凉 → 黄金小时琥珀 → 夜
+// ============================================
+(function setupSky() {
+  // 几个时段端点 (24h). 在端点之间 CSS @property + transition 自己漂.
+  // 取 hour ∈ [0,24), 找最近一段
+  const PALETTE = [
+    // hour, top, bot
+    [ 0, 'rgba(7, 6, 15, 0.55)',  'rgba(7, 6, 15, 0.78)'  ],  // 深夜
+    [ 5, 'rgba(50, 25, 38, 0.42)','rgba(20, 15, 25, 0.65)' ], // 拂晓 (暖)
+    [ 9, 'rgba(15, 28, 50, 0.28)','rgba(10, 18, 32, 0.50)' ], // 白天 (清凉, 让底图露多一点)
+    [17, 'rgba(60, 28, 12, 0.38)','rgba(28, 14, 18, 0.62)' ], // 黄金小时
+    [20, 'rgba(7, 6, 15, 0.55)',  'rgba(7, 6, 15, 0.78)'  ],  // 入夜
+  ];
+
+  function paletteForNow() {
+    const h = new Date().getHours();
+    // 找 <= 当前的最后一段
+    let pick = PALETTE[0];
+    for (const row of PALETTE) {
+      if (row[0] <= h) pick = row;
+    }
+    return pick;
+  }
+
+  function apply() {
+    const [, top, bot] = paletteForNow();
+    document.documentElement.style.setProperty('--sky-top', top);
+    document.documentElement.style.setProperty('--sky-bot', bot);
+  }
+  apply();
+  // 每 5 分钟 check 一次, 切到新时段 CSS 会自己 60s 漂过去
+  setInterval(apply, 5 * 60 * 1000);
+})();
+
+// ============================================
+// 12. 电台时钟 — 顶部 brand 下方, 一秒一跳, 冒号呼吸
 // ============================================
 (function setupClock() {
   const elClock = document.getElementById('t-clock');

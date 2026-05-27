@@ -66,16 +66,32 @@ body {
    背景层
    ============================================ */
 
+/* 时间段动态背景:
+   --sky-top / --sky-bot 是天空 overlay 的两端颜色, JS 按当前小时改值,
+   CSS 借 @property 把它们注册为 <color> 类型 → 修改时可以平滑插值,
+   配合 transition: 60s, 看着像天色慢慢漂. */
+@property --sky-top {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(7, 6, 15, 0.55);
+}
+@property --sky-bot {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(7, 6, 15, 0.78);
+}
+
 .scenery {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: -3;
   background:
-    linear-gradient(180deg, rgba(7,6,15,0.55) 0%, rgba(7,6,15,0.78) 100%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bot) 100%),
     url("https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1920&q=80")
       center / cover no-repeat fixed,
     linear-gradient(135deg, #1e1640 0%, #07060f 70%);
+  transition: --sky-top 60s linear, --sky-bot 60s linear;
 }
 
 .grid {
@@ -517,13 +533,21 @@ h2 {
 
 .card-now.playing .artwork {
   animation: cover-pulse 4s ease-in-out infinite;
-  box-shadow:
-    0 10px 32px -8px rgba(255,107,142,0.5),
-    0 0 0 1px rgba(255,255,255,0.06) inset;
 }
+/* 播歌时封面缓慢呼吸 (放大 + 旋转 + 阴影同步呼吸, 像胸口起伏) */
 @keyframes cover-pulse {
-  0%, 100% { transform: scale(1)    rotate(-0.5deg); }
-  50%      { transform: scale(1.02) rotate(0.5deg); }
+  0%, 100% {
+    transform: scale(1) rotate(-0.6deg);
+    box-shadow:
+      0  6px 22px -8px rgba(255,107,142,0.40),
+      0 0 0 1px rgba(255,255,255,0.05) inset;
+  }
+  50% {
+    transform: scale(1.035) rotate(0.6deg);
+    box-shadow:
+      0 12px 36px -6px rgba(255,107,142,0.60),
+      0 0 0 1px rgba(255,255,255,0.08) inset;
+  }
 }
 
 .track-info { min-width: 0; }
