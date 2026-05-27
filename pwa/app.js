@@ -203,7 +203,7 @@ btnPlay.addEventListener('click', () => {
 
 btnNext.addEventListener('click', () => {
   autoPlayArmed = true;
-  playNext();
+  advanceByMode({ userInitiated: true });
 });
 
 // like / dislike — 当前播放的歌
@@ -298,7 +298,7 @@ audio.addEventListener('pause', () => {
   btnPlay.textContent = '▶';
   cardNow.classList.remove('playing');
 });
-audio.addEventListener('ended', () => playNext());
+audio.addEventListener('ended', () => advanceByMode());
 
 // 防死循环: 空 src / 频繁报错时不再触发 next
 let lastAudioError = 0;
@@ -308,7 +308,7 @@ audio.addEventListener('error', () => {
   if (now - lastAudioError < 1500) return;
   lastAudioError = now;
   console.warn('[music] 歌加载失败,跳下一首');
-  playNext();
+  advanceByMode();
 });
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
@@ -342,6 +342,36 @@ async function playNext() {
   } catch (e) {
     console.error('playNext 出错:', e);
   }
+}
+
+// 跳到队列里某个位置的歌, 立即播 (复用 POST /api/queue/play/:idx)
+// 双击队列项和 shuffle 模式都走这里
+async function jumpToQueueIndex(idx) {
+  try {
+    const r = await fetch(`/api/queue/play/${idx}`, { method: 'POST' });
+    const np = await r.json();
+    if (np?.url) {
+      audio.src = np.url;
+      await audio.play().catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[jump]', e.message);
+  }
+}
+
+// 按当前播放模式推进一首
+// userInitiated=true 时跳过 loop 分支 (手动 ⏭ 永远跳下一首)
+function advanceByMode({ userInitiated = false } = {}) {
+  if (playMode === 'loop' && !userInitiated) {
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+    return;
+  }
+  if (playMode === 'shuffle' && currentQueue.length > 0) {
+    const idx = Math.floor(Math.random() * currentQueue.length);
+    return jumpToQueueIndex(idx);
+  }
+  playNext();
 }
 
 function maybeStartPlayback() {
@@ -512,17 +542,10 @@ function bindQueueItem(li, idx) {
   });
 
   // 双击 → 插队立即播
-  li.addEventListener('dblclick', async (e) => {
+  li.addEventListener('dblclick', (e) => {
     e.preventDefault();
     autoPlayArmed = true;
-    try {
-      const r = await fetch(`/api/queue/play/${idx}`, { method: 'POST' });
-      const np = await r.json();
-      if (np?.url) {
-        audio.src = np.url;
-        await audio.play().catch(()=>{});
-      }
-    } catch (e) { console.warn('[queue jump]', e.message); }
+    jumpToQueueIndex(idx);
   });
 
   // 拖拽
