@@ -63,6 +63,11 @@
             <div class="controls">
               <button id="btn-play" aria-label="播放/暂停" class="ctrl ctrl-main">▶</button>
               <button id="btn-next" aria-label="下一首" class="ctrl" title="下一首">⏭</button>
+              <button id="btn-mode" class="ctrl" title="顺序播放">
+                <span class="mode-icon" data-mode="sequential">→</span>
+                <span class="mode-icon" data-mode="shuffle" hidden>⇄</span>
+                <span class="mode-icon" data-mode="loop" hidden>↻</span>
+              </button>
               <button id="btn-like" aria-label="喜欢" class="ctrl ctrl-fb" title="喜欢这首,多推类似的">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path class="heart-outline" d="M12 20.5s-7.2-5.4-7.2-11A4.3 4.3 0 0 1 12 6.5a4.3 4.3 0 0 1 7.2 3c0 5.6-7.2 11-7.2 11z"/>
@@ -108,6 +113,10 @@
             喜欢 <span class="en">liked</span>
             <span class="count mono" id="liked-count">0</span>
           </button>
+        </div>
+        <div class="queue-toolbar" data-tab="queue">
+          <button class="q-action" id="btn-queue-clear" title="清空待播列表">清空</button>
+          <button class="q-action" id="btn-queue-refresh" title="让 Claude 重新推一批">换一批</button>
         </div>
         <ul id="queue-list" class="queue-list tab-pane tab-pane-active" data-tab="queue"></ul>
         <ul id="history-list" class="history-list tab-pane" data-tab="history" hidden></ul>
