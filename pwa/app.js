@@ -323,7 +323,8 @@ function reflectFeedbackButtons() {
 function reflectPlayModeUI() {
   if (!btnMode) return;
   btnMode.querySelectorAll('.mode-icon').forEach(el => {
-    el.hidden = el.dataset.mode !== playMode;
+    // SVG 元素没有 hidden IDL 属性, 必须显式 toggleAttribute
+    el.toggleAttribute('hidden', el.dataset.mode !== playMode);
   });
   const titles = {
     sequential: '顺序播放',
