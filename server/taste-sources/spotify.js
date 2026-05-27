@@ -90,13 +90,110 @@ async function getValidAccessToken() {
   return refreshed.access_token;
 }
 
-// refresh(): 无条件重拉所有数据, 写 LISTENING_FILE
-// refreshIfStale(maxAgeMs): 看 LISTENING_FILE mtime; 超时或缺文件才调 refresh()
-// 两个都在 Task 4 实现
-export async function refreshIfStale() {
-  throw new Error('not implemented yet (Task 4)');
+// ————— API 拉取 —————
+
+async function spotifyGet(accessToken, urlPath) {
+  const r = await fetch(`https://api.spotify.com${urlPath}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`Spotify API ${r.status} @ ${urlPath}: ${txt.slice(0, 200)}`);
+  }
+  return r.json();
 }
 
+async function fetchTopArtists(accessToken, timeRange) {
+  const data = await spotifyGet(
+    accessToken,
+    `/v1/me/top/artists?time_range=${timeRange}&limit=30`
+  );
+  return (data.items || []).map(a => ({
+    name: a.name,
+    id: a.id,
+    genres: a.genres || [],
+  }));
+}
+
+async function fetchLikedSongs(accessToken, maxTotal = 200) {
+  const out = [];
+  const limit = 50;
+  for (let offset = 0; offset < maxTotal; offset += limit) {
+    const data = await spotifyGet(
+      accessToken,
+      `/v1/me/tracks?limit=${limit}&offset=${offset}`
+    );
+    const items = data.items || [];
+    for (const it of items) {
+      const t = it.track;
+      if (!t) continue;
+      out.push({
+        name: t.name,
+        artist: (t.artists || []).map(a => a.name).join(', '),
+        addedAt: it.added_at,
+      });
+    }
+    if (items.length < limit) break;   // 没更多了
+    if (out.length >= maxTotal) break;
+  }
+  return out.slice(0, maxTotal);
+}
+
+// ————— 主入口 —————
+
+// refresh(): 无条件重拉所有数据, 写 LISTENING_FILE。失败抛错, 不写文件。
+// 调用者若关心 invalid_grant 等具体错误, 自己 catch。
 export async function refresh() {
-  throw new Error('not implemented yet (Task 4)');
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) {
+    throw new Error('no token, 请先跑 scripts/spotify-auth.js');
+  }
+
+  // 并行拉所有数据 (3 个 top + 4 页 tracks)
+  const [shortArtists, mediumArtists, longArtists, liked] = await Promise.all([
+    fetchTopArtists(accessToken, 'short_term'),
+    fetchTopArtists(accessToken, 'medium_term'),
+    fetchTopArtists(accessToken, 'long_term'),
+    fetchLikedSongs(accessToken, 200),
+  ]);
+
+  const data = {
+    syncedAt: new Date().toISOString(),
+    artists: {
+      short_term: shortArtists,
+      medium_term: mediumArtists,
+      long_term: longArtists,
+    },
+    liked,
+  };
+
+  await fs.mkdir(path.dirname(LISTENING_FILE), { recursive: true });
+  await fs.writeFile(LISTENING_FILE, JSON.stringify(data, null, 2));
+  return data;
+}
+
+// refreshIfStale(maxAgeMs): 看 LISTENING_FILE mtime; 超时或缺文件才调 refresh()
+// 返回: 'refreshed' | 'cached' | 'no-auth' | 'failed'
+// 不抛, 失败用 console.warn 上报后返回 'failed'
+export async function refreshIfStale(maxAgeMs = 24 * 60 * 60 * 1000) {
+  const tok = await loadToken();
+  if (!tok) return 'no-auth';
+
+  // 文件存在且足够新 → 跳过
+  try {
+    const stat = await fs.stat(LISTENING_FILE);
+    if (Date.now() - stat.mtimeMs < maxAgeMs) {
+      return 'cached';
+    }
+  } catch {
+    // 文件不存在, 落到 refresh
+  }
+
+  try {
+    await refresh();
+    return 'refreshed';
+  } catch (e) {
+    console.warn('[spotify] refresh 失败 (不影响主服务):', e.message);
+    return 'failed';
+  }
 }
