@@ -46,6 +46,9 @@ let currentLyricIndex = -1;
 let feedback = { liked: [], disliked: [] };
 let playMode = 'sequential';
 let chatInflight = false;
+// chat 后队列异步填充时用: dj_broadcast 来时队列还空, 标记一下;
+// queue_update 一到, 强切到新歌 (即使当前歌还在放)
+let pendingAutoStart = false;
 
 // ============================================
 // 1. WebSocket
@@ -78,7 +81,14 @@ function handleWs(msg) {
       break;
     case 'queue_update':
       renderQueue(msg.queue);
-      maybeStartPlayback();
+      // chat 刚发完 dj_broadcast 时队列还空, 现在歌后台解析好了 → 强切到第一首新歌
+      // (即使当前歌还在播也打断, 因为用户已经表态"换一批")
+      if (pendingAutoStart && currentQueue.length > 0) {
+        pendingAutoStart = false;
+        playNext();
+      } else {
+        maybeStartPlayback();
+      }
       break;
     case 'now_playing':
       renderQueue(msg.queue);
@@ -144,12 +154,7 @@ chatForm.addEventListener('submit', async (e) => {
 
     if (data.kind === 'chat') {
       appendChat('assistant', data.say, data.reason);
-      // 0 首兜底提示
-      if (Array.isArray(data.play) && data.play.length > 0
-          && (!data.resolved || data.resolved.length === 0)) {
-        appendChat('assistant',
-          `(没在网易云找到能播的: ${data.play.slice(0, 3).join(', ')}${data.play.length > 3 ? '…' : ''})`);
-      }
+      // 注: HTTP 现在早 return (歌后台解析), data.resolved 永远是空, 不再用它判 0-songs warning
     } else if (data.kind === 'play_direct') {
       const names = (data.added || []).map(s => `${s.song} - ${s.artist}`).join(', ');
       appendChat('assistant', `已排好: ${names || '(没找到能播的)'}`);
@@ -459,8 +464,15 @@ function speakThenPlay(text, audioUrl) {
   };
 
   const startNext = () => {
-    // 不管之前在不在播,DJ 一开口就推进到下一首,前奏当背景
-    if (autoPlayArmed) playNext();
+    // DJ 一开口就推进, 让前奏当背景
+    if (!autoPlayArmed) return;
+    if (currentQueue.length > 0) {
+      playNext();
+    } else {
+      // 队列空: 歌还在后台解析中. 等 queue_update 到再切到新歌.
+      // 当前歌继续播 (被 ducked), DJ 在上面说话.
+      pendingAutoStart = true;
+    }
   };
 
   if (audioUrl) {
