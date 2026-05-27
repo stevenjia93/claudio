@@ -186,19 +186,34 @@ node server.js
 
 ## 多音源接入（怎么解锁 VIP）
 
-### 网易云 VIP
+### 网易云登录 (强烈推荐)
+
+不登录的话, 海外曲 / 一些经典老歌 / VIP 曲都拿不到 url, 自动 fallback 到 YT Music. 登录后, 一切 netease 上能放的歌都能拿到直链, 而且如果你是 VIP, 走 320kbps+.
+
+跑一键脚本即可:
 
 ```bash
-# 跑着 NeteaseCloudMusicApi 时,另一个终端
-curl "http://localhost:3000/login/qr/key?timestamp=$(date +%s)"
-# 拿 unikey, 然后:
-curl "http://localhost:3000/login/qr/create?key=YOUR_UNIKEY&qrimg=true&timestamp=$(date +%s)"
-# 把返回的 base64 二维码图片打开, 手机网易云 APP 扫码
-curl "http://localhost:3000/login/qr/check?key=YOUR_UNIKEY&timestamp=$(date +%s)"
-# 看到 code=803 就是登录成功
+# 1. 先确保 NCM API 在 :3000 跑着 (./start.sh 会自动起)
+# 2. 跑这条:
+node scripts/netease-auth.js
 ```
 
-登录态会跟 NeteaseCloudMusicApi 进程绑定，重启它要重登。
+脚本会:
+- 起本地 callback 流 (轮询 NCM 的 /login/qr/check)
+- 自动 open `/tmp/ncm-qr.png` (Mac Preview 里看二维码)
+- 你拿手机网易云 APP → "我的" → 扫一扫 → 扫这个码 → 确认
+- 自动抓 cookie + 验证账号 + 写到 `state/netease-cookie.json` (gitignored)
+- 显示你的 nickname + vipType
+
+之后 `./start.sh` 启动时, server 日志会打:
+
+```
+[netease] cookie 加载 ✓ (你的昵称, vipType N)
+```
+
+cookie 一般几个月有效. **失效了重跑一次 `node scripts/netease-auth.js` 就行**.
+
+> 注: cookie 存 `state/netease-cookie.json`, `state/` 整体 gitignored, 不进 git.
 
 ### QQ 音乐 VIP（推荐有 VIP 的话）
 
