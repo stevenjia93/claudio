@@ -30,6 +30,9 @@ const btnPlay = $('btn-play');
 const btnNext = $('btn-next');
 const btnLike = $('btn-like');
 const btnDislike = $('btn-dislike');
+const btnMode = $('btn-mode');
+const btnQueueClear = $('btn-queue-clear');
+const btnQueueRefresh = $('btn-queue-refresh');
 const wsPill = $('ws-pill');
 const cardNow = document.querySelector('.card-now');
 const cardLyrics = $('card-lyrics');
@@ -41,6 +44,7 @@ let autoPlayArmed = false;
 let lyrics = [];          // [{t: seconds, text: string}]
 let currentLyricIndex = -1;
 let feedback = { liked: [], disliked: [] };
+let playMode = 'sequential';
 
 // ============================================
 // 1. WebSocket
@@ -65,6 +69,8 @@ function handleWs(msg) {
     case 'hello':
       if (msg.feedback) feedback = msg.feedback;
       if (likedCount) likedCount.textContent = String((feedback.liked || []).length);
+      playMode = msg.playMode || 'sequential';
+      reflectPlayModeUI();
       renderQueue(msg.queue || []);
       if (msg.nowPlaying) renderNowPlaying(msg.nowPlaying);
       refreshHistory();
@@ -98,6 +104,10 @@ function handleWs(msg) {
       if (likedCount) likedCount.textContent = String((feedback.liked || []).length);
       // 如果"喜欢"tab 当前是激活的, 重新渲染
       if (!document.querySelector('[data-tab="liked"]').hidden) renderLiked();
+      break;
+    case 'mode_update':
+      playMode = msg.playMode || 'sequential';
+      reflectPlayModeUI();
       break;
   }
 }
@@ -229,6 +239,21 @@ btnDislike.addEventListener('click', () => {
   }
 });
 
+btnMode.addEventListener('click', async () => {
+  const order = ['sequential', 'shuffle', 'loop'];
+  const next = order[(order.indexOf(playMode) + 1) % order.length];
+  try {
+    await fetch('/api/mode', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: next })
+    });
+    // 不在这里翻 UI, 等 WS mode_update 回来再翻
+  } catch (e) {
+    appendChat('assistant', `切模式失败: ${e.message}`);
+  }
+});
+
 // 当前歌在 feedback 里的状态 (♥ / ✕ / 无)
 function feedbackStateForCurrent() {
   if (!currentSong?.song) return null;
@@ -243,6 +268,22 @@ function reflectFeedbackButtons() {
   btnLike.classList.toggle('active', st === 'like');
   btnDislike.classList.toggle('active', st === 'dislike');
   // SVG 心 — active 时 .heart-fill 显示, css 里控制
+}
+
+function reflectPlayModeUI() {
+  if (!btnMode) return;
+  btnMode.querySelectorAll('.mode-icon').forEach(el => {
+    el.hidden = el.dataset.mode !== playMode;
+  });
+  const titles = {
+    sequential: '顺序播放',
+    shuffle: '随机播放',
+    loop: '单曲循环'
+  };
+  const label = titles[playMode] || '播放模式';
+  btnMode.title = label;
+  btnMode.setAttribute('aria-label', label);
+  btnMode.classList.toggle('active', playMode !== 'sequential');
 }
 
 audio.addEventListener('play', () => {
@@ -533,6 +574,7 @@ function bindQueueItem(li, idx) {
 // —— Tabs (待播 / 已播 / 喜欢) ——
 (function bindTabs() {
   const tabs = document.querySelectorAll('.tabs .tab');
+  const toolbar = document.querySelector('.queue-toolbar');
   tabs.forEach(t => {
     t.addEventListener('click', () => {
       const target = t.dataset.tab;
@@ -540,6 +582,7 @@ function bindQueueItem(li, idx) {
       document.querySelectorAll('.tab-pane').forEach(p => {
         p.hidden = p.dataset.tab !== target;
       });
+      if (toolbar) toolbar.hidden = target !== 'queue';
       if (target === 'liked') renderLiked();
       if (target === 'history') refreshHistory();
     });
