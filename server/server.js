@@ -81,6 +81,16 @@ async function resolvePlayList(playNames) {
 
 // 走一次 Claude 流水线: 解析歌名 + TTS + 广播 + 返回 brain 结果
 // 抽出来给 /api/chat 和 /api/queue/refresh 复用
+//
+// 时序设计 (避免用户干等 30s):
+//   1. Claude.invoke (~5-15s)
+//   2. setQueue([]) 先清队列 — 自然语言 chat = "换一批" 语义
+//   3. TTS 合成 (~3-5s); 等 TTS 好就立刻广播 dj_broadcast (queue=[])
+//   4. HTTP 早 return (不等歌解析)
+//   5. 后台并行解析歌, 完了 pushQueue + 广播 queue_update
+//
+// 前端 speakThenPlay 看到队列空时不调 playNext, set pendingAutoStart;
+// queue_update 到了再切到第一首新歌, 把当前歌打断.
 async function runChatTurn(text) {
   state.appendMessage('user', text);
   const prompt = await assemble(text);
@@ -88,27 +98,40 @@ async function runChatTurn(text) {
 
   state.appendMessage('assistant', brain.say);
 
-  const itemsP = resolvePlayList(brain.play);
-  const audioP = brain.say
-    ? tts.synthesize(brain.say).catch(e => {
+  // 自然语言 = "换一批", 清空队列 (直连命令 play_direct 走另一条路, 保持追加行为)
+  state.setQueue([]);
+
+  // TTS 是关键路径, await 它; 歌解析挪到后台 (Promise 不 await)
+  const audioUrl = brain.say
+    ? await tts.synthesize(brain.say).catch(e => {
         console.warn('[tts] 合成挂了:', e.message);
         return null;
       })
-    : Promise.resolve(null);
-  const [items, audioUrl] = await Promise.all([itemsP, audioP]);
-  state.pushQueue(items);
-  items.forEach(it => state.appendPlay({ ...it, source: 'claude' }));
+    : null;
 
+  // 立刻广播 DJ — 队列空, 当前歌不动 (前端会 duck, 等 queue_update 再切)
   broadcast({
     type: 'dj_broadcast',
     say: brain.say,
     reason: brain.reason,
     segue: brain.segue,
     audio_url: audioUrl,
-    queue: state.get().queue
+    queue: []
   });
 
-  return { kind: 'chat', ...brain, resolved: items, audio_url: audioUrl };
+  // 后台并行解析所有歌, 完了 push + 广播 queue_update.
+  // 故意不 await — HTTP 就早 return, 浏览器输入框立刻可用
+  resolvePlayList(brain.play).then(items => {
+    if (!items.length) return;
+    state.pushQueue(items);
+    items.forEach(it => state.appendPlay({ ...it, source: 'claude' }));
+    broadcast({ type: 'queue_update', queue: state.get().queue });
+  }).catch(e => {
+    console.warn('[music] 后台解析挂了:', e.message);
+  });
+
+  // resolved 后台还没完, 返空数组. 前端不再依赖这个判 0-songs.
+  return { kind: 'chat', ...brain, resolved: [], audio_url: audioUrl };
 }
 
 // ——— API: 聊天 ———
