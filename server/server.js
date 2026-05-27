@@ -37,7 +37,8 @@ wss.on('connection', ws => {
     type: 'hello',
     nowPlaying: s.nowPlaying,
     queue: s.queue,
-    feedback: s.feedback || { liked: [], disliked: [] }
+    feedback: s.feedback || { liked: [], disliked: [] },
+    playMode: s.playMode || 'sequential'
   }));
   ws.on('close', () => clients.delete(ws));
 });
@@ -244,6 +245,18 @@ app.get('/api/proxy/yt/:videoId', async (req, res) => {
 // ——— API: 看哪些音源在跑 ———
 app.get('/api/sources', (req, res) => {
   res.json(music.listSources());
+});
+
+// ——— API: 播放模式 ———
+app.put('/api/mode', (req, res) => {
+  const { mode } = req.body || {};
+  try {
+    state.setPlayMode(mode);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  broadcast({ type: 'mode_update', playMode: mode });
+  res.json({ ok: true, mode });
 });
 
 // ——— API: like / dislike / clear 反馈 ———
