@@ -251,6 +251,69 @@ HTTP_PROXY=http://127.0.0.1:7890
 
 ---
 
+## 接入 Spotify 听歌数据（作为口味信号）
+
+不让 Spotify 放歌（DRM 拿不到流），而是把你 Spotify 的 Top Artists + Liked Songs 同步成本地 JSON, 喂给 Claude 当口味画像。多年累积的听歌数据 → Claude 推的更贴你。
+
+### 1. 注册 Spotify Developer App
+
+1. 上 https://developer.spotify.com/dashboard, 用你 Spotify 账号登录
+2. 点 **Create App**
+3. App name 随便 (`claudio-personal`)
+4. **Redirect URI 必须填**: `http://127.0.0.1:3001/callback` (Spotify 不接受 `localhost`)
+5. 拿到 Client ID + Client Secret
+
+### 2. 填 .env
+
+```ini
+SPOTIFY_CLIENT_ID=...
+SPOTIFY_CLIENT_SECRET=...
+```
+
+### 3. 一次性授权
+
+```bash
+cd claudio
+set -a; source .env; set +a
+node scripts/spotify-auth.js
+```
+
+脚本会:
+- 起本地 callback 服务 :3001
+- 开浏览器到 Spotify 授权页 (只要 `user-top-read` + `user-library-read`)
+- 你点同意 → 浏览器跳回本地 → 终端显示 ✓ → 退出
+
+`state/spotify-token.json` 生成, 内含 refresh_token (永久有效, 除非 revoke)。
+
+### 4. 数据怎么进 prompt
+
+之后每次 `./start.sh`:
+- 服务启动看 `user/spotify-listening.json` mtime
+- 超 24h 或没文件 → 后台异步从 Spotify 拉一次 (Top Artists 3 期 × 30 + Liked Songs × 200)
+- prompt 里多一节 `# 我的 Spotify 听歌信号` 给 Claude 看
+
+启动日志会有这两种之一:
+
+```
+[spotify] 听歌信号已刷新
+[spotify] 听歌信号缓存 (< 24h)
+```
+
+### 故障排查
+
+| 问题 | 解决 |
+|---|---|
+| 启动日志 `[spotify] 没授权` | 跑 `node scripts/spotify-auth.js` |
+| 启动日志 `refresh 失败` | 看完整 warning, 通常是网络或 Spotify 短暂挂; 不影响其它源 |
+| 启动日志 `refresh_token invalid_grant, 请重跑 scripts/spotify-auth.js` | refresh_token 被 revoke (在 Spotify Dashboard 撤销 app, 或长期没用), 重跑 auth 脚本 |
+| 跑 spotify-auth.js 报 `端口 3001 被占用` | `lsof -nP -iTCP:3001 -sTCP:LISTEN` 查谁占的, 释放再跑 |
+
+### Phase 2 备忘
+
+将来可以加 YouTube Music (yt-dlp 扒 Liked Songs)、Apple Music (要 $99/年 Developer 账号), 或者手动导出 (QQ / 汽水) 的解析器。各自单独 spec, 数据 merge 到同一份 `user/spotify-listening.json` (或改名 `user/listening-history.json`)。
+
+---
+
 ## 调教 Claudio
 
 四个文件，改了立刻生效（不用重启）：
