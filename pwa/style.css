@@ -1083,6 +1083,7 @@ footer {
   gap: 6px;
   margin-bottom: 10px;
 }
+.queue-toolbar[hidden] { display: none; }
 .q-action {
   flex: 1;
   background: transparent;
@@ -1112,6 +1113,7 @@ footer {
   line-height: 1;
 }
 #btn-mode .mode-icon { display: inline-block; }
+#btn-mode .mode-icon[hidden] { display: none; }
 #btn-mode.active {
   color: var(--teal);
   border-color: var(--teal-dim);
