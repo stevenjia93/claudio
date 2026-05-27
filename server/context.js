@@ -32,6 +32,8 @@ export async function assemble(userInput, opts = {}) {
   const taste = await readOr(path.resolve('../user/taste.md'));
   const routines = await readOr(path.resolve('../user/routines.md'));
   const playlistsRaw = await readOr(path.resolve('../user/playlists.json'), '{}');
+  const spotifyRaw = await readOr(path.resolve('../user/spotify-listening.json'), '');
+  const spotifyBlock = formatSpotifyBlock(spotifyRaw);;
 
   // ③ 环境注入
   const now = new Date();
@@ -68,7 +70,7 @@ ${routines}
 
 # 我爱的歌单 (JSON)
 ${playlistsRaw}
-
+${spotifyBlock}
 ---
 # 现在
 ${env.now} (${env.dayOfWeek},${env.hour} 点)
@@ -103,6 +105,37 @@ play 数组里每首写成 "歌名 - 歌手" 的格式,**6 到 10 首**,要一�
 如果我只是闲聊没让你放歌,play 可以是空数组 []。`;
 
   return prompt;
+}
+
+// ————————————————————————————————————————
+// Spotify 听歌信号格式化
+// ————————————————————————————————————————
+function formatSpotifyBlock(rawJson) {
+  if (!rawJson) return '';
+  let data;
+  try { data = JSON.parse(rawJson); } catch { return ''; }
+
+  const top = data.artists || {};
+  const liked = (data.liked || []).slice(0, 150);
+  const lines = (arr) => (arr || []).map(a => a.name).join(' / ');
+
+  // 空数据不出整节
+  if (!liked.length && !lines(top.short_term)) return '';
+
+  const synced = data.syncedAt
+    ? new Date(data.syncedAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })
+    : '?';
+
+  return `
+# 我的 Spotify 听歌信号 (自动同步 · ${synced})
+
+## Top Artists
+- 最近 4 周: ${lines(top.short_term)}
+- 最近 6 个月: ${lines(top.medium_term)}
+- 长期 (多年): ${lines(top.long_term)}
+
+## Liked Songs (最近收藏 ${liked.length} 首)
+${liked.map(t => `- ${t.name} - ${t.artist}`).join('\n')}`;
 }
 
 /**
