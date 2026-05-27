@@ -128,6 +128,7 @@
             喜欢 <span class="en">liked</span>
             <span class="count mono" id="liked-count">0</span>
           </button>
+          <button class="tab-more" id="btn-tabs-more" title="查看讨厌过的歌" aria-label="查看讨厌过的歌">⋯</button>
         </div>
         <div class="queue-toolbar" data-tab="queue">
           <button class="q-action" id="btn-queue-clear" title="清空待播列表">清空</button>
@@ -169,6 +170,23 @@
   </footer>
 
   <div class="bubbles" id="bubbles" aria-hidden="true"></div>
+
+  <!-- 讨厌过的歌 — 隐藏管理面板, ⋯ 按钮触发 -->
+  <div class="disliked-overlay" id="disliked-overlay" hidden>
+    <div class="disliked-panel" role="dialog" aria-label="讨厌过的歌">
+      <div class="disliked-head">
+        <span>讨厌过的歌 <span class="muted mono" id="disliked-count">0</span> · 点 ✕ 撤回, Claude 会重新可推</span>
+        <button class="disliked-close" id="btn-disliked-close" aria-label="关闭">✕</button>
+      </div>
+      <ul class="history-list disliked-list" id="disliked-list"></ul>
+    </div>
+  </div>
+
+  <!-- 误点 dislike 后底部 5s 自渐隐撤回 toast -->
+  <div class="undo-toast" id="undo-toast" hidden>
+    <span id="undo-toast-text"></span>
+    <button class="undo-toast-btn" id="undo-toast-btn">撤回</button>
+  </div>
 
   <script type="module" src="/app.js"></script>
 </body>

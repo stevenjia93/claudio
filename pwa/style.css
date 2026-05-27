@@ -1118,3 +1118,141 @@ footer {
   color: var(--teal);
   border-color: var(--teal-dim);
 }
+
+/* ============================================
+   "⋯" 暗藏入口 (查看讨厌过的歌) + dislike 管理面板
+   ============================================ */
+.tab-more {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: color 0.18s, background 0.18s;
+  line-height: 1;
+  align-self: center;
+}
+.tab-more:hover { color: var(--ink-dim); background: rgba(255,255,255,0.03); }
+
+/* 整屏半透明遮罩 + 居中浮层 */
+.disliked-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 6, 15, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.disliked-overlay[hidden] { display: none; }
+.disliked-panel {
+  width: min(520px, 100%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.disliked-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+.disliked-close {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.disliked-close:hover { color: var(--ink); background: rgba(255,255,255,0.05); }
+.disliked-list {
+  list-style: none;
+  padding: 6px 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.disliked-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.disliked-list li:last-child { border-bottom: none; }
+.disliked-list .d-song { flex: 1; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.disliked-list .d-artist { color: var(--ink-dim); font-size: 11px; max-width: 35%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.disliked-list .d-clear {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+.disliked-list .d-clear:hover {
+  color: var(--ink);
+  border-color: var(--border-hi);
+  background: rgba(255,255,255,0.04);
+}
+.disliked-empty {
+  padding: 30px 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ============================================
+   底部 Undo Toast (误点 dislike 5s 撤回窗口)
+   ============================================ */
+.undo-toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 32, 0.96);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--ink);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  animation: toast-in 0.2s ease-out;
+}
+.undo-toast[hidden] { display: none; }
+.undo-toast.fading { opacity: 0; transition: opacity 0.5s; }
+.undo-toast-btn {
+  background: transparent;
+  border: 1px solid var(--coral-dim);
+  color: var(--coral);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.undo-toast-btn:hover { background: rgba(255,107,142,0.08); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}

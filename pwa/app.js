@@ -33,6 +33,14 @@ const btnDislike = $('btn-dislike');
 const btnMode = $('btn-mode');
 const btnQueueClear = $('btn-queue-clear');
 const btnQueueRefresh = $('btn-queue-refresh');
+const btnTabsMore = $('btn-tabs-more');
+const dislikedOverlay = $('disliked-overlay');
+const dislikedList = $('disliked-list');
+const dislikedCount = $('disliked-count');
+const btnDislikedClose = $('btn-disliked-close');
+const undoToast = $('undo-toast');
+const undoToastText = $('undo-toast-text');
+const undoToastBtn = $('undo-toast-btn');
 const wsPill = $('ws-pill');
 const cardNow = document.querySelector('.card-now');
 const cardLyrics = $('card-lyrics');
@@ -73,6 +81,7 @@ function handleWs(msg) {
     case 'hello':
       if (msg.feedback) feedback = msg.feedback;
       if (likedCount) likedCount.textContent = String((feedback.liked || []).length);
+      if (dislikedCount) dislikedCount.textContent = String((feedback.disliked || []).length);
       playMode = msg.playMode || 'sequential';
       reflectPlayModeUI();
       renderQueue(msg.queue || []);
@@ -113,8 +122,11 @@ function handleWs(msg) {
       feedback = msg.feedback || feedback;
       reflectFeedbackButtons();
       if (likedCount) likedCount.textContent = String((feedback.liked || []).length);
+      if (dislikedCount) dislikedCount.textContent = String((feedback.disliked || []).length);
       // 如果"喜欢"tab 当前是激活的, 重新渲染
       if (!document.querySelector('[data-tab="liked"]').hidden) renderLiked();
+      // 讨厌 overlay 开着也重渲染 (用户在面板里点 ✕ 后会经此路径刷新)
+      if (dislikedOverlay && !dislikedOverlay.hidden) renderDisliked();
       break;
     case 'mode_update':
       playMode = msg.playMode || 'sequential';
@@ -216,13 +228,14 @@ btnNext.addEventListener('click', () => {
 });
 
 // like / dislike — 当前播放的歌
-async function sendFeedback(action) {
-  if (!currentSong?.song) return;
-  const song = {
+// songOverride 用于撤回 toast / disliked 面板 (那时 currentSong 可能已经切走)
+async function sendFeedback(action, songOverride) {
+  const song = songOverride || (currentSong?.song ? {
     song: currentSong.song,
     artist: currentSong.artist,
     source: currentSong.source || ''
-  };
+  } : null);
+  if (!song) return;
   await fetch('/api/feedback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -242,7 +255,14 @@ btnDislike.addEventListener('click', () => {
   if (st === 'dislike') {
     sendFeedback('clear');
   } else {
+    // 拍快照: 下一行 playNext 会替换 currentSong, 不快照 toast 撤回时拿不到对的歌
+    const snapshot = {
+      song: currentSong.song,
+      artist: currentSong.artist,
+      source: currentSong.source || ''
+    };
     sendFeedback('dislike');
+    showUndoToast(snapshot);
     autoPlayArmed = true;
     playNext();
   }
@@ -345,6 +365,74 @@ function reflectPlayModeUI() {
 function reflectInflight() {
   btnSend.disabled = chatInflight;
   if (btnQueueRefresh) btnQueueRefresh.disabled = chatInflight;
+}
+
+// ============================================
+//  Dislike 撤回: 5s toast + 隐藏管理面板
+// ============================================
+let undoToastTimer = null;
+function showUndoToast(songSnapshot) {
+  if (!undoToast || !songSnapshot) return;
+  undoToastText.textContent = `已不喜欢: ${songSnapshot.song} - ${songSnapshot.artist}`;
+  undoToastBtn.onclick = () => {
+    sendFeedback('clear', songSnapshot);
+    hideUndoToast();
+  };
+  undoToast.classList.remove('fading');
+  undoToast.hidden = false;
+  clearTimeout(undoToastTimer);
+  undoToastTimer = setTimeout(() => {
+    undoToast.classList.add('fading');
+    setTimeout(hideUndoToast, 500);
+  }, 5000);
+}
+function hideUndoToast() {
+  if (!undoToast) return;
+  undoToast.hidden = true;
+  undoToast.classList.remove('fading');
+  clearTimeout(undoToastTimer);
+}
+
+function renderDisliked() {
+  if (!dislikedList || !dislikedCount) return;
+  const items = (feedback.disliked || []).slice().reverse();
+  dislikedCount.textContent = String(items.length);
+  dislikedList.innerHTML = '';
+  if (!items.length) {
+    dislikedList.innerHTML = '<li class="disliked-empty">还没标过讨厌的</li>';
+    return;
+  }
+  for (const p of items) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="d-song">${escapeHtml(p.song || '')}</span>
+      <span class="d-artist">${escapeHtml(p.artist || '')}</span>
+      <button class="d-clear" title="从讨厌清单移除, Claude 重新可推">✕</button>
+    `;
+    li.querySelector('.d-clear').addEventListener('click', () => {
+      sendFeedback('clear', { song: p.song, artist: p.artist, source: p.source || '' });
+      // 不立刻 re-render — 等 WS feedback 广播回来再刷, 状态唯一来源
+    });
+    dislikedList.appendChild(li);
+  }
+}
+
+function openDislikedOverlay() {
+  if (!dislikedOverlay) return;
+  renderDisliked();
+  dislikedOverlay.hidden = false;
+}
+function closeDislikedOverlay() {
+  if (dislikedOverlay) dislikedOverlay.hidden = true;
+}
+
+if (btnTabsMore) btnTabsMore.addEventListener('click', openDislikedOverlay);
+if (btnDislikedClose) btnDislikedClose.addEventListener('click', closeDislikedOverlay);
+// 点遮罩 (面板外) 也关
+if (dislikedOverlay) {
+  dislikedOverlay.addEventListener('click', (e) => {
+    if (e.target === dislikedOverlay) closeDislikedOverlay();
+  });
 }
 
 audio.addEventListener('play', () => {
