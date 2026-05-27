@@ -137,9 +137,44 @@ export async function songDetail(_videoId) {
   return null;
 }
 
+// 把 "歌名 - 歌手" / "歌名 歌手" 末尾的歌手摘出来给 ranking 用
+// (跟 qq.js 的 extractArtistHint 同款)
+function extractArtistHint(query) {
+  const dashed = query.split(/\s*[-–—]\s*/);
+  if (dashed.length >= 2) return dashed[dashed.length - 1].trim().toLowerCase();
+  const tokens = query.trim().split(/\s+/);
+  if (tokens.length >= 2) return tokens.slice(1).join(' ').toLowerCase();
+  return '';
+}
+
+// YT 第一名常是翻唱/sped-up/live/lyric video 不带原音轨, 排序时降权
+//   - 翻唱/混音/慢速/8D 等改编版 → 用户基本不会想要
+//   - live/acoustic/unplugged → 不算"翻唱"但也不是 studio 原版, 优先级低一点
+const BAD_KEYWORDS = /(\bcover\b|\bremix\b|sped[\s-]?up|slowed|reverb|nightcore|chipmunk|8d audio|tiktok|\blive\b|\bacoustic\b|unplugged)/i;
+
+function rankCandidates(candidates, hint) {
+  if (!hint) return candidates;
+  // 权重: channel 命中是强信号 (这是艺人自己的频道); title 命中只是 tiebreaker
+  // 这样 "Vincent" by [Don McLean channel] (ch=3) 优先于 "Don McLean - Vincent (Live)" by [Don McLean channel] (ch+title-live = 3+1-3 = 1)
+  const score = (c) => {
+    let s = 0;
+    const artist = (c.artist || '').toLowerCase();
+    const name = (c.name || '').toLowerCase();
+    if (artist.includes(hint)) s += 3;   // channel = 艺人频道, 强信号
+    if (name.includes(hint)) s += 1;     // 标题也提艺人, 轻 tiebreaker
+    if (BAD_KEYWORDS.test(name)) s -= 3; // 翻唱/live/sped-up 等降权
+    return s;
+  };
+  return candidates.map((c, i) => ({ c, s: score(c), i }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)  // 同分按 YT 原始顺序
+    .map(x => x.c);
+}
+
 export async function findPlayable(query) {
-  const candidates = await search(query, 3);
-  for (const c of candidates) {
+  const candidates = await search(query, 5);  // 多搜几个让 ranking 起作用
+  const hint = extractArtistHint(query);
+  const ranked = rankCandidates(candidates, hint);
+  for (const c of ranked) {
     if (c.id) return { ...c, url: `/api/proxy/yt/${c.id}` };
   }
   return null;
