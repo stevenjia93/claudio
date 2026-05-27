@@ -17,6 +17,7 @@ const DEFAULT_STATE = {
   // DJ 间奏节奏: 每过 djBreakAt 首歌插一段过渡, 之后随机重置 2-4 首
   playsSinceDjBreak: 0,
   djBreakAt: 2,
+  playMode: 'sequential',   // 'sequential' | 'loop' | 'shuffle'
   plan: null,     // 早报/晚报内容，v2 用
   prefs: {}       // 用户临时偏好，v2 用
 };
@@ -113,5 +114,15 @@ export function addFeedback(action, song) {
   // 各保留最近 100 条防膨胀
   if (state.feedback.liked.length > 100) state.feedback.liked = state.feedback.liked.slice(-100);
   if (state.feedback.disliked.length > 100) state.feedback.disliked = state.feedback.disliked.slice(-100);
+  save();
+}
+
+const VALID_PLAY_MODES = new Set(['sequential', 'loop', 'shuffle']);
+
+export function setPlayMode(mode) {
+  if (!VALID_PLAY_MODES.has(mode)) {
+    throw new Error(`非法 playMode: ${mode}`);
+  }
+  state.playMode = mode;
   save();
 }
