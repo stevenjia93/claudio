@@ -33,7 +33,7 @@ export async function assemble(userInput, opts = {}) {
   const routines = await readOr(path.resolve('../user/routines.md'));
   const playlistsRaw = await readOr(path.resolve('../user/playlists.json'), '{}');
   const spotifyRaw = await readOr(path.resolve('../user/spotify-listening.json'), '');
-  const spotifyBlock = formatSpotifyBlock(spotifyRaw);;
+  const spotifyBlock = formatSpotifyBlock(spotifyRaw);
 
   // ③ 环境注入
   const now = new Date();
