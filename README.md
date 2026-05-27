@@ -138,7 +138,8 @@ node -v                          # 确认 >= 20
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | **是** | https://console.anthropic.com → API keys | Claude 大脑 |
 | `ELEVENLABS_API_KEY` | 推荐 | https://elevenlabs.io → Profile → API key | DJ 真人嗓（不填就用浏览器机器嗓） |
-| `ELEVENLABS_VOICE_ID` | 配合上面 | Voice Library 里挑一个，复制 Voice ID | |
+| `ELEVENLABS_VOICE_ID` | 配合上面 | Voice Library 里挑一个，复制 Voice ID | 英文 DJ 声音 |
+| `ELEVENLABS_VOICE_ID_ZH` | 可选 | 同上 | 中文 DJ 声音 (默认台湾女声 `9lHjugDhwqoxA5MhX0az`) |
 | `SPOTIFY_CLIENT_ID` / `SECRET` | 可选 | https://developer.spotify.com/dashboard | 拉 Spotify 听歌画像 (账号要 Premium) |
 
 #### 3. clone + 装依赖
@@ -318,13 +319,15 @@ HTTP_PROXY=http://127.0.0.1:7890
 | `user/taste.md` | 你的音乐口味 — 爱什么、烦什么、什么场景听什么 |
 | `user/routines.md` | 你的作息 — Claudio 会结合时间挑歌 |
 | `user/playlists.json` | 锚点歌单 — 给 Claudio 当参考 |
-| `prompts/dj-persona.md` | DJ 人设 — 调他怎么说话 |
+| `prompts/dj-persona.md` | DJ 英文人设 (BBC Radio 3 风) |
+| `prompts/dj-persona-zh.md` | DJ 中文人设 (台湾午夜电台女声风) |
 
 `state.json` 也是 Claude 的输入：
 - `feedback.liked / disliked` — 你点过 ♡ 和 🖤 的歌，prompt 里会注入 "多推类似的 / 避开"
 - `plays[-10:]` — 最近 10 次播放，避免重复
 - `messages[-6:]` — 最近 6 条对话上下文
 - `playMode` — 你选的播放模式 (顺序/随机/单曲循环), 跨重启保留
+- `djLanguage` — 你选的 DJ 语种 ('en' 或 'zh'), 跨重启保留
 
 还有两个**自动同步**的输入 (跑过对应脚本后自动注入):
 - `user/spotify-listening.json` — Spotify Top Artists + Liked Songs (24h 自动刷新)
@@ -349,6 +352,7 @@ HTTP_PROXY=http://127.0.0.1:7890
 | 点 ▶ / ⏸ | 播放 / 暂停（不会丢当前歌，跟 Next 不同） |
 | 点 ⏭ | 下一首 (尊重当前模式: 随机 → 随机一首; 单曲循环 → 跳出循环到下一首) |
 | 点 模式按钮 (≡→ / ⇄ / ↻) | 切顺序 / 随机 / 单曲循环 |
+| 点 顶部 `🎙 EN` / `🎙 中` pill | 切 DJ 语种 (英文 ⇄ 中文); 切了不动当前队列, 下次 DJ 说话/选歌按新语种 |
 | 点 ♡ | 标记喜欢；再点取消 |
 | 点 🖤 (心碎) | 标记不喜欢 + 自动切下一首 + 底部 5s 撤回 toast |
 | 点 toast 里 [撤回] | 取消刚才的 dislike (5s 内有效) |
@@ -431,7 +435,8 @@ ANTHROPIC_API_KEY=
 
 # —— DJ 嗓 (推荐) ——
 ELEVENLABS_API_KEY=
-ELEVENLABS_VOICE_ID=
+ELEVENLABS_VOICE_ID=               # 英文 DJ 声音 (默认英式男声)
+ELEVENLABS_VOICE_ID_ZH=            # 中文 DJ 声音 (默认台湾女声; UI 顶 pill 切换)
 
 # —— 音源开关 ——
 MUSIC_SOURCES=netease,ytmusic      # 优先级,左到右,逗号分隔

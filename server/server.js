@@ -39,7 +39,8 @@ wss.on('connection', ws => {
     nowPlaying: s.nowPlaying,
     queue: s.queue,
     feedback: s.feedback || { liked: [], disliked: [] },
-    playMode: s.playMode || 'sequential'
+    playMode: s.playMode || 'sequential',
+    djLanguage: s.djLanguage || 'en'
   }));
   ws.on('close', () => clients.delete(ws));
 });
@@ -103,7 +104,7 @@ async function runChatTurn(text) {
 
   // TTS 是关键路径, await 它; 歌解析挪到后台 (Promise 不 await)
   const audioUrl = brain.say
-    ? await tts.synthesize(brain.say).catch(e => {
+    ? await tts.synthesize(brain.say, { lang: state.get().djLanguage }).catch(e => {
         console.warn('[tts] 合成挂了:', e.message);
         return null;
       })
@@ -197,7 +198,7 @@ app.get('/api/next', async (req, res) => {
       if (brain.say) {
         state.appendMessage('assistant', brain.say);
         let audioUrl = null;
-        try { audioUrl = await tts.synthesize(brain.say); } catch (e) {
+        try { audioUrl = await tts.synthesize(brain.say, { lang: state.get().djLanguage }); } catch (e) {
           console.warn('[dj-intro tts]', e.message);
         }
         djIntro = { say: brain.say, audio_url: audioUrl };
@@ -289,6 +290,19 @@ app.put('/api/mode', (req, res) => {
   }
   broadcast({ type: 'mode_update', playMode: mode });
   res.json({ ok: true, mode });
+});
+
+// ——— API: DJ 语种 (en / zh) ———
+// 切换语种 = 切 voice + persona, 不动当前队列 (语种是个轻操作, 不打断正在听的)
+app.put('/api/dj-language', (req, res) => {
+  const { language } = req.body || {};
+  try {
+    state.setDjLanguage(language);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  broadcast({ type: 'dj_language_update', djLanguage: language });
+  res.json({ ok: true, djLanguage: language });
 });
 
 // ——— API: 换一批 (清队列 + 让 Claude 重新推) ———

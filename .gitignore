@@ -19,6 +19,9 @@ Thumbs.db
 .idea/
 *.swp
 
+# Claude Code 工作区 (临时实验, 不上 git)
+.claude/
+
 # 用户自己拷在 server/ 里的额外目录 — 不属于 claudio
 server/QQMusicApi/
 server/photo_headshot/

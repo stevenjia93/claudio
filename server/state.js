@@ -18,6 +18,7 @@ const DEFAULT_STATE = {
   playsSinceDjBreak: 0,
   djBreakAt: 2,
   playMode: 'sequential',   // 'sequential' | 'loop' | 'shuffle'
+  djLanguage: 'en',         // 'en' | 'zh' — DJ 说话用哪种, 切 voice + persona
   plan: null,     // 早报/晚报内容，v2 用
   prefs: {}       // 用户临时偏好，v2 用
 };
@@ -124,5 +125,15 @@ export function setPlayMode(mode) {
     throw new Error(`非法 playMode: ${mode}`);
   }
   state.playMode = mode;
+  save();
+}
+
+const VALID_DJ_LANGS = new Set(['en', 'zh']);
+
+export function setDjLanguage(lang) {
+  if (!VALID_DJ_LANGS.has(lang)) {
+    throw new Error(`非法 djLanguage: ${lang}`);
+  }
+  state.djLanguage = lang;
   save();
 }

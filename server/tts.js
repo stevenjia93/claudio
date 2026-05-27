@@ -10,6 +10,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'IRHApOXLvnW57QJPQH2P';
+const VOICE_ID_ZH = process.env.ELEVENLABS_VOICE_ID_ZH || '9lHjugDhwqoxA5MhX0az';
 const MODEL = process.env.ELEVENLABS_MODEL || 'eleven_turbo_v2_5';
 // turbo_v2_5 是速度/质量/价格平衡点;想更好音质改成 eleven_multilingual_v2
 const PROXY = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
@@ -23,15 +24,18 @@ const inflight = new Map();
 /**
  * 生成 TTS 音频,返回可公开访问的 URL 路径
  * @param {string} text
+ * @param {object} [opts] - { lang: 'en'|'zh' } 选 voice; 默认 en
  * @returns {Promise<string|null>} '/tts/<hash>.mp3' 或 null(配置不全/失败)
  */
-export async function synthesize(text) {
+export async function synthesize(text, opts = {}) {
   if (!API_KEY) {
     return null;  // 没配 key,前端会 fallback 到浏览器 TTS
   }
   if (!text || !text.trim()) return null;
 
-  const hash = crypto.createHash('sha1').update(`${VOICE_ID}:${MODEL}:${text}`).digest('hex');
+  const voiceId = opts.lang === 'zh' ? VOICE_ID_ZH : VOICE_ID;
+
+  const hash = crypto.createHash('sha1').update(`${voiceId}:${MODEL}:${text}`).digest('hex');
   const fileName = `${hash}.mp3`;
   const filePath = path.join(CACHE_DIR, fileName);
   const urlPath = `/tts/${fileName}`;
@@ -45,15 +49,15 @@ export async function synthesize(text) {
   // 2) 并发去重
   if (inflight.has(hash)) return inflight.get(hash);
 
-  const task = doSynth(text, filePath, urlPath).finally(() => {
+  const task = doSynth(text, filePath, urlPath, voiceId).finally(() => {
     inflight.delete(hash);
   });
   inflight.set(hash, task);
   return task;
 }
 
-async function doSynth(text, filePath, urlPath) {
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
+async function doSynth(text, filePath, urlPath, voiceId) {
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
   const r = await fetch(url, {
     method: 'POST',
@@ -95,7 +99,7 @@ export function report() {
     console.log('[tts] 未配 ELEVENLABS_API_KEY,将 fallback 到浏览器原生 TTS');
     return;
   }
-  console.log(`[tts] ElevenLabs 就绪 · voice=${VOICE_ID} · model=${MODEL}`);
+  console.log(`[tts] ElevenLabs 就绪 · voice(en)=${VOICE_ID} · voice(zh)=${VOICE_ID_ZH} · model=${MODEL}`);
 }
 
 /**

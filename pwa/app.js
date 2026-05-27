@@ -34,6 +34,7 @@ const btnMode = $('btn-mode');
 const btnQueueClear = $('btn-queue-clear');
 const btnQueueRefresh = $('btn-queue-refresh');
 const btnTabsMore = $('btn-tabs-more');
+const btnDjLang = $('btn-dj-lang');
 const dislikedOverlay = $('disliked-overlay');
 const dislikedList = $('disliked-list');
 const dislikedCount = $('disliked-count');
@@ -53,6 +54,7 @@ let lyrics = [];          // [{t: seconds, text: string}]
 let currentLyricIndex = -1;
 let feedback = { liked: [], disliked: [] };
 let playMode = 'sequential';
+let djLanguage = 'en';   // 'en' | 'zh' — DJ 说话用哪种, 跟服务器 state 同步
 let chatInflight = false;
 // chat 后队列异步填充时用: dj_broadcast 来时队列还空, 标记一下;
 // queue_update 一到, 强切到新歌 (即使当前歌还在放)
@@ -84,6 +86,8 @@ function handleWs(msg) {
       if (dislikedCount) dislikedCount.textContent = String((feedback.disliked || []).length);
       playMode = msg.playMode || 'sequential';
       reflectPlayModeUI();
+      djLanguage = msg.djLanguage || 'en';
+      reflectDjLanguageUI();
       renderQueue(msg.queue || []);
       if (msg.nowPlaying) renderNowPlaying(msg.nowPlaying);
       refreshHistory();
@@ -131,6 +135,10 @@ function handleWs(msg) {
     case 'mode_update':
       playMode = msg.playMode || 'sequential';
       reflectPlayModeUI();
+      break;
+    case 'dj_language_update':
+      djLanguage = msg.djLanguage || 'en';
+      reflectDjLanguageUI();
       break;
   }
 }
@@ -287,6 +295,24 @@ btnMode.addEventListener('click', async () => {
   }
 });
 
+if (btnDjLang) btnDjLang.addEventListener('click', async () => {
+  const next = djLanguage === 'zh' ? 'en' : 'zh';
+  try {
+    const r = await fetch('/api/dj-language', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: next })
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`HTTP ${r.status}: ${t.slice(0, 120)}`);
+    }
+    // 不在这里翻 UI, 等 WS dj_language_update 回来再翻 (服务端是单一真相源)
+  } catch (e) {
+    appendChat('assistant', `切 DJ 语种失败: ${e.message}`);
+  }
+});
+
 btnQueueClear.addEventListener('click', async () => {
   if (currentQueue.length === 0) return;
   try {
@@ -360,6 +386,12 @@ function reflectPlayModeUI() {
   btnMode.title = label;
   btnMode.setAttribute('aria-label', label);
   btnMode.classList.toggle('active', playMode !== 'sequential');
+}
+
+function reflectDjLanguageUI() {
+  if (!btnDjLang) return;
+  btnDjLang.textContent = djLanguage === 'zh' ? '🎙 中' : '🎙 EN';
+  btnDjLang.title = djLanguage === 'zh' ? 'DJ 中文 (点切英文)' : 'DJ 英文 (点切中文)';
 }
 
 function reflectInflight() {

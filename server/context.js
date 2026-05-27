@@ -16,16 +16,33 @@ async function readOr(filepath, fallback = '') {
   catch { return fallback; }
 }
 
+// 双语 DJ persona 配置: 切 persona 文件 + 间奏报幕的语种约束
+const DJ_LANG_CFG = {
+  en: {
+    personaFile: 'dj-persona.md',
+    introLengthHint: '30-90 字英文 (不是 90 词!), 像真电台 DJ 报幕一样',
+    introSayHint: 'your line here, 30-90 英文字, spoken cadence',
+    fallbackPersona: '你是 Claudio,一个私人 AI 电台 DJ。',
+  },
+  zh: {
+    personaFile: 'dj-persona-zh.md',
+    introLengthHint: '30-90 字中文, 一两句话, 留白; 不要"接下来这首"那种播音腔',
+    introSayHint: '一句中文, 30-90 字, 像台北午夜电台念的节奏',
+    fallbackPersona: '你是 Claudio,一个台湾午夜电台女声 DJ。',
+  },
+};
+
 /**
  * 组装完整的 prompt,交给 claude.js 去 spawn
  * @param {string} userInput 本次用户说的话
  * @param {object} opts 额外上下文
  */
 export async function assemble(userInput, opts = {}) {
-  // ① 系统提示词
+  // ① 系统提示词 — 按当前 djLanguage 选 persona
+  const langCfg = DJ_LANG_CFG[state.get().djLanguage] || DJ_LANG_CFG.en;
   const persona = await readOr(
-    path.resolve('../prompts/dj-persona.md'),
-    '你是 Claudio,一个私人 AI 电台 DJ。'
+    path.resolve(`../prompts/${langCfg.personaFile}`),
+    langCfg.fallbackPersona
   );
 
   // ② 用户语料
@@ -143,9 +160,10 @@ ${liked.map(t => `- ${t.name} - ${t.artist}`).join('\n')}`;
  * 让 DJ 说一段简短的过渡词。10-25 秒能念完, 不重新选歌。
  */
 export async function assembleIntro({ nextSong, lastPlayed, queue }) {
+  const langCfg = DJ_LANG_CFG[state.get().djLanguage] || DJ_LANG_CFG.en;
   const persona = await readOr(
-    path.resolve('../prompts/dj-persona.md'),
-    'You are Claudio, a private radio DJ.'
+    path.resolve(`../prompts/${langCfg.personaFile}`),
+    langCfg.fallbackPersona
   );
   const upcoming = (queue || []).slice(0, 3)
     .map(s => `  · ${s.song} - ${s.artist}`).join('\n');
@@ -163,14 +181,14 @@ ${upcoming || '(没了)'}
 # 你这次的任务 — 间奏报幕 (不是新一批选歌)
 作为 DJ, 在这两首歌之间说一段非常短的过渡词。
 约束:
-- 30-90 字英文 (不是 90 词!), 像真电台 DJ 报幕一样
+- ${langCfg.introLengthHint}
 - 一两句话就够,不要列歌单不要长抒情
 - 提到下一首是什么 (歌名 + 歌手), 给个 5-10 字的钩子让人继续听
 - 别重复刚才的歌, 也别预告 3 首之后的事
-- 风格跟 dj-persona 保持一致 — 含蓄,克制,iambic
+- 风格跟 dj-persona 保持一致
 
 # 输出 — 严格 JSON
 {
-  "say": "your line here, 30-90 英文字, spoken cadence"
+  "say": "${langCfg.introSayHint}"
 }`;
 }

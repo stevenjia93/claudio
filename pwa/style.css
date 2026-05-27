@@ -328,6 +328,14 @@ h2 {
 .pill-coral { color: var(--coral); }
 .pill-teal  { color: var(--teal); }
 .pill-dim   { color: var(--muted); }
+/* 可点的 pill (DJ 语种切换) */
+.pill-action {
+  color: var(--purple);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+.pill-action:hover { color: var(--pink); }
 .pill.live {
   background: rgba(103, 212, 255, 0.10);
   color: var(--teal);
