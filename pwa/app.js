@@ -243,11 +243,15 @@ btnMode.addEventListener('click', async () => {
   const order = ['sequential', 'shuffle', 'loop'];
   const next = order[(order.indexOf(playMode) + 1) % order.length];
   try {
-    await fetch('/api/mode', {
+    const r = await fetch('/api/mode', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: next })
     });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`HTTP ${r.status}: ${t.slice(0, 120)}`);
+    }
     // 不在这里翻 UI, 等 WS mode_update 回来再翻
   } catch (e) {
     appendChat('assistant', `切模式失败: ${e.message}`);
