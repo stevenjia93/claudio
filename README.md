@@ -7,12 +7,12 @@
 │                          PWA :8080  (浏览器/手机)                        │
 │                                ↕                                         │
 │                       Node 服务器 (:8080)                                │
-│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐                │
-│  │  Claude  │ElevenLabs│  网易云  │ QQ 音乐  │YouTube M │                │
-│  │  (大脑)  │ (DJ嗓)   │  :3000   │ 直连HTTP │  yt-dlp  │                │
-│  └──────────┴──────────┴──────────┴──────────┴──────────┘                │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────────┐            │
+│  │  Claude  │ElevenLabs│  网易云  │YouTube M │  Spotify     │            │
+│  │  (大脑)  │ (DJ嗓)   │ NCM:3000 │  yt-dlp  │ (口味画像)   │            │
+│  └──────────┴──────────┴──────────┴──────────┴──────────────┘            │
 │                                ↕                                         │
-│                       state.json (口味/历史/喜欢)                        │
+│             state/ (口味 cookie / Spotify token / 听歌历史)              │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -21,24 +21,28 @@
 ## 它能干什么
 
 ### 听
-- **多源自动 fallback**：网易云 → QQ → YouTube Music 顺序问，谁先给出能播的就用谁
+- **多源自动 fallback**：网易云 → YouTube Music 顺序问，谁先给出能播的就用谁
 - **专辑封面 + 同步歌词**：边播边滚，词/曲/编曲那种元信息自动滤掉
 - **可拖动进度条 + 双击歌词跳转**：像 Apple Music 那样
 - **歌词手动滚 + 4s 自动归位**：你想往前看几行歌词，停 4 秒自动回到当下播放行
 - **DJ 边说边放**：开场报幕时，下一首已经在响，DJ 嗓在 22% 音量的歌上配音，说完渐回 100%
 - **DJ 间奏**：每 2-4 首之间，Claude 自动生成一句过渡词 + ElevenLabs 真人嗓念，跟真电台节奏一致
+- **3 种播放模式**：顺序 / 随机 / 单曲循环，主控制栏一个图标按钮切换，模式持久化到 state
 
 ### 选
 - **6-10 首一批**：Claude 一次推一整套 25-40 分钟的 set，开场暖、中段走、收尾留白
 - **`play 稻香 周杰伦` 直连**：搜歌时 artist 名匹配优先，避开翻奏占原唱位
 - **♡ 喜欢 / 🖤 不喜欢**：标记后写到 state，下次 prompt 注入"多推这种 / 避开那种"
-- **不喜欢自动切下一首**：点 dislike → 自动 next，不让你重复手动两步
+- **不喜欢自动切下一首 + 5s 撤回 toast**：点 dislike → 底部冒"已不喜欢: X - Y [撤回]"，误点 5 秒内可救回
+- **讨厌列表暗藏入口**：tabs 行右上一个 `⋯`，点开浮层管理所有讨厌过的歌，每条 ✕ 一键撤回。**不放主 tab 栏，跟 Spotify 的 "hidden songs" 哲学一致**
+- **Spotify 口味画像**（可选）：把你 Spotify 的 Top Artists（4 周/6 月/多年三期）+ Liked Songs 同步成本地 JSON 喂给 Claude，多年积累的听歌习惯都是输入
 
 ### 管
 - **三合一 tabs**：待播 / 已播 / 喜欢，一个面板切换
 - **队列拖拽重排 + ✕ 删除**：随便整理顺序
 - **队列双击 → 立即插队播**：跳到那一首
 - **已播 / 喜欢双击 → 立即重听**（搜出新链接，跳过队列）
+- **"清空" / "换一批" 工具栏**：待播 tab 顶上两个按钮，清空 = 一键倒空队列；换一批 = 清空 + 让 Claude 重推一批
 
 ### 看
 - **Discord 玻璃卡片**：背景 backdrop-blur
@@ -49,9 +53,37 @@
 
 ---
 
-## 跑起来
+## 跑起来 — TL;DR
 
-### 方式 A: Docker (推荐, 一行命令)
+最快 5 步, Mac 本地:
+
+```bash
+# 1. 装基础工具 (没装 Homebrew 先装: https://brew.sh)
+brew install node git yt-dlp
+
+# 2. clone + 装依赖
+git clone https://github.com/stevenjia93/claudio.git
+cd claudio/server && npm install && cd ..
+
+# 3. 配 .env
+cp .env.example .env
+# 填上 ANTHROPIC_API_KEY (必填) + ELEVENLABS_API_KEY (强推, 不填走机器嗓)
+
+# 4. 起服务
+./start.sh
+
+# 5. 第一次跑, 强烈推荐扫码登录网易云 (解锁海外曲 / VIP 曲)
+node scripts/netease-auth.js
+# 之后浏览器开 http://localhost:8080
+```
+
+可选: 接 Spotify 当口味画像 — 看下面 [接入 Spotify](#接入-spotify-听歌数据作为口味信号) 一节。
+
+---
+
+## 跑起来 — 详细
+
+### 方式 A: Docker (一行命令)
 
 ```bash
 # 1. 拷贝 .env.example 然后填好 API keys
@@ -82,9 +114,11 @@ docker compose up -d
 
 镜像支持 `linux/amd64` 和 `linux/arm64`（Mac M 系列原生）。看日志 `docker logs -f claudio`，关停 `docker compose down` 或 `docker rm -f claudio`。
 
-**Docker 里的 YouTube Music**：容器拿不到你 Chrome 的 cookie。两个办法：
-- 手贴：`.env` 里写 `YT_COOKIE=YSC=xxx; VISITOR_INFO1_LIVE=xxx;...`（从浏览器 F12 拷）
-- 文件挂载：在 host 跑一次 `yt-dlp --cookies-from-browser chrome --cookies cookies.txt`，然后 docker run 加 `-v $(pwd)/cookies.txt:/cookies.txt:ro`，`.env` 里设 `YT_COOKIES_FILE=/cookies.txt`
+**Docker 的限制**:
+- 网易云扫码登录脚本 `scripts/netease-auth.js` 需要 mac `open` 命令开 Preview, Docker 里跑不动; 容器里只能跑匿名 (大部分歌还是 fallback YT)
+- YT Music: 容器拿不到你 Chrome 的 cookie。两个办法:
+  - 手贴: `.env` 里写 `YT_COOKIE=YSC=xxx; VISITOR_INFO1_LIVE=xxx;...`（从浏览器 F12 拷）
+  - 文件挂载: 在 host 跑一次 `yt-dlp --cookies-from-browser chrome --cookies cookies.txt`, 然后 docker run 加 `-v $(pwd)/cookies.txt:/cookies.txt:ro`, `.env` 里设 `YT_COOKIES_FILE=/cookies.txt`
 
 ---
 
@@ -94,7 +128,7 @@ docker compose up -d
 
 ```bash
 # 没装 Homebrew 先装: https://brew.sh
-brew install node git yt-dlp     # yt-dlp 是 YouTube Music 用的
+brew install node git yt-dlp     # yt-dlp 是 YouTube Music 必备
 node -v                          # 确认 >= 20
 ```
 
@@ -105,13 +139,14 @@ node -v                          # 确认 >= 20
 | `ANTHROPIC_API_KEY` | **是** | https://console.anthropic.com → API keys | Claude 大脑 |
 | `ELEVENLABS_API_KEY` | 推荐 | https://elevenlabs.io → Profile → API key | DJ 真人嗓（不填就用浏览器机器嗓） |
 | `ELEVENLABS_VOICE_ID` | 配合上面 | Voice Library 里挑一个，复制 Voice ID | |
+| `SPOTIFY_CLIENT_ID` / `SECRET` | 可选 | https://developer.spotify.com/dashboard | 拉 Spotify 听歌画像 (账号要 Premium) |
 
-#### 3. 装依赖
+#### 3. clone + 装依赖
 
 ```bash
-unzip claudio.zip
+git clone https://github.com/stevenjia93/claudio.git
 cd claudio/server
-npm install        # 会自动装 play-dl 作为 YT Music fallback
+npm install        # 装 server 依赖, 含 play-dl (YT Music 备用)
 ```
 
 #### 4. 配 .env
@@ -131,144 +166,59 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 ELEVENLABS_API_KEY=sk_...
 ELEVENLABS_VOICE_ID=IRHApOXLvnW57QJPQH2P
 
-# 启用哪些音源 (左到右优先级, 主源拿不到自动 fallback)
-MUSIC_SOURCES=netease,qq,ytmusic
+# 启用哪些音源 (左到右优先级)
+MUSIC_SOURCES=netease,ytmusic
 ```
 
-#### 5. 起音源 server
-
-**网易云**（必跑，开新终端）：
-```bash
-npx NeteaseCloudMusicApi
-# 看到 "server running @ http://localhost:3000" 就行
-```
-
-**QQ 音乐**：直接打 QQ 接口，不需要本地代理 server，但 VIP 曲要 cookie（看下面）
-
-**YouTube Music**：用 `yt-dlp` + 浏览器 cookie，不需要起 server
-
-#### 6. 起 Claudio
-
-```bash
-cd claudio/server
-set -a; source ../.env; set +a    # 把 .env 加载进 shell
-node server.js
-```
-
-启动日志：
-```
-[music] 启用音源 (优先级): netease → qq → ytmusic
-🎙  Claudio @ http://localhost:8080
-   局域网: http://192.168.x.x:8080
-   WebSocket: ws://localhost:8080/stream
-[tts] ElevenLabs 就绪
-```
-
-打开 <http://localhost:8080> ，在底下输入框敲一句话试试。
-
-#### 之后每天怎么启动
-
-第一次跑过之后，依赖都装好了、`.env` 也填好了，**用一行命令拉起全套**：
+#### 5. 起服务 + 网易云登录
 
 ```bash
 ./start.sh
 ```
 
-`start.sh` 会自动：
+`start.sh` 会自动:
 1. 检查 `.env` 在不在
 2. 没装依赖就 `npm install`
-3. NeteaseCloudMusicApi 没跑就后台起一个（日志 `/tmp/claudio-ncm.log`）
+3. NeteaseCloudMusicApi 没跑就后台起一个 (`/tmp/claudio-ncm.log`)
 4. 加载 `.env` 然后 `node server/server.js`
+5. 启动日志告诉你局域网地址 (手机能用)
 
-`Ctrl+C` 退就行。Netease 那个后台进程下次还能复用，不用重启。
-
----
-
-## 多音源接入（怎么解锁 VIP）
-
-### 网易云登录 (强烈推荐)
-
-不登录的话, 海外曲 / 一些经典老歌 / VIP 曲都拿不到 url, 自动 fallback 到 YT Music. 登录后, 一切 netease 上能放的歌都能拿到直链, 而且如果你是 VIP, 走 320kbps+.
-
-跑一键脚本即可:
+打开 <http://localhost:8080> 应该能用。但是: **匿名访问网易云只能拿到部分歌**, 海外曲 / VIP 曲会 fallback 到 YT。**强烈推荐扫码登录一次** (启动 NCM 跑着, 另开一个终端):
 
 ```bash
-# 1. 先确保 NCM API 在 :3000 跑着 (./start.sh 会自动起)
-# 2. 跑这条:
 node scripts/netease-auth.js
 ```
 
 脚本会:
-- 起本地 callback 流 (轮询 NCM 的 /login/qr/check)
-- 自动 open `/tmp/ncm-qr.png` (Mac Preview 里看二维码)
+- 起本地轮询去问 NCM 的 `/login/qr/check`
+- 自动开 Preview 显示二维码
 - 你拿手机网易云 APP → "我的" → 扫一扫 → 扫这个码 → 确认
 - 自动抓 cookie + 验证账号 + 写到 `state/netease-cookie.json` (gitignored)
 - 显示你的 nickname + vipType
 
-之后 `./start.sh` 启动时, server 日志会打:
+下次 `./start.sh` 启动, 看到这行就说明 cookie 生效:
 
 ```
 [netease] cookie 加载 ✓ (你的昵称, vipType N)
 ```
 
-cookie 一般几个月有效. **失效了重跑一次 `node scripts/netease-auth.js` 就行**.
+cookie 一般几个月有效, 失效了重跑这个脚本就行。
 
-> 注: cookie 存 `state/netease-cookie.json`, `state/` 整体 gitignored, 不进 git.
+#### 6. 之后每天怎么用
 
-### QQ 音乐 VIP（推荐有 VIP 的话）
-
-QQ 音乐的接口现在所有曲（哪怕免费）都需要 cookie 才能拿播放链接。如果你有 QQ 音乐 VIP，登录态贴进来就能解锁全曲库：
-
-1. **Chrome 打开 https://y.qq.com，确认你 VIP 账号已登录**
-2. **F12 → Application → Cookies → 选 `https://y.qq.com`**
-3. **找两个 cookie 值**：
-   - `uin` — 数字，就是你的 QQ 号
-   - `qm_keyst` — 很长一串字母数字
-4. **填到 `.env`**：
-   ```ini
-   QQ_UIN=2147483647
-   QQ_QM_KEYST=粘贴整段
-   ```
-   或者直接整段 cookie 头贴：
-   ```ini
-   QQ_COOKIE=uin=...; qm_keyst=...; pgv_pvid=...; (其他字段都行)
-   ```
-5. 重启 `node server.js`
-
-没 cookie 的话 QQ 源也能搜歌、也能拿歌词，**只是拿不到播放链接**。会自动 fallback 到 YT Music。
-
-### YouTube Music
-
-YT Music 不需要本地 API server，直接用 `yt-dlp` 子进程。**但 YouTube 反爬越来越严，需要登录态。** 推荐借浏览器现成的 cookie：
-
-```ini
-# .env
-YT_COOKIES_FROM_BROWSER=chrome    # 或 safari / firefox / edge / brave
+```bash
+./start.sh
 ```
 
-这样 yt-dlp 会自动从 Chrome 的 cookie 数据库里抽 YouTube 登录态。前提：你 Chrome 已经登录了 YouTube 账号。
-
-不想用浏览器 cookie 也可以手贴：
-```ini
-YT_COOKIE=YSC=xxx; VISITOR_INFO1_LIVE=xxx; (从浏览器 F12 拷)
-```
-
-### 国内网络
-
-YT Music / Anthropic API 都需要走代理：
-
-```ini
-HTTPS_PROXY=http://127.0.0.1:7890    # v2rayN 默认 10808, Clash 默认 7890
-HTTP_PROXY=http://127.0.0.1:7890
-```
-
-`claude.js` 会自动认这两个变量，走 https-proxy-agent。yt-dlp 也会自动认。
+`Ctrl+C` 退就行。NCM 那个后台进程下次还能复用，不用重启。
 
 ---
 
 ## 接入 Spotify 听歌数据（作为口味信号）
 
 不让 Spotify 放歌（DRM 拿不到流），而是把你 Spotify 的 Top Artists + Liked Songs 同步成本地 JSON, 喂给 Claude 当口味画像。多年累积的听歌数据 → Claude 推的更贴你。
+
+> ⚠ 注意: 创建 Spotify dev app 的账号必须有 **Premium** 订阅, 不然 API 都返 403。这是 Spotify 自己的政策, 跟代码无关。
 
 ### 1. 注册 Spotify Developer App
 
@@ -320,12 +270,42 @@ node scripts/spotify-auth.js
 |---|---|
 | 启动日志 `[spotify] 没授权` | 跑 `node scripts/spotify-auth.js` |
 | 启动日志 `refresh 失败` | 看完整 warning, 通常是网络或 Spotify 短暂挂; 不影响其它源 |
-| 启动日志 `refresh_token invalid_grant, 请重跑 scripts/spotify-auth.js` | refresh_token 被 revoke (在 Spotify Dashboard 撤销 app, 或长期没用), 重跑 auth 脚本 |
+| Spotify 返 403 "premium required" | 创建 dev app 的账号没 Premium, 或者刚开通 Premium 几小时内 (cache 没刷过来), 等 1-3 小时 |
+| 启动日志 `refresh_token invalid_grant, 请重跑 scripts/spotify-auth.js` | refresh_token 被 revoke, 重跑 auth 脚本 |
 | 跑 spotify-auth.js 报 `端口 3001 被占用` | `lsof -nP -iTCP:3001 -sTCP:LISTEN` 查谁占的, 释放再跑 |
 
-### Phase 2 备忘
+---
 
-将来可以加 YouTube Music (yt-dlp 扒 Liked Songs)、Apple Music (要 $99/年 Developer 账号), 或者手动导出 (QQ / 汽水) 的解析器。各自单独 spec, 数据 merge 到同一份 `user/spotify-listening.json` (或改名 `user/listening-history.json`)。
+## YT Music
+
+YT Music 不需要本地 API server，直接用 `yt-dlp` 子进程。**但 YouTube 反爬越来越严，需要登录态。** 推荐借浏览器现成的 cookie：
+
+```ini
+# .env
+YT_COOKIES_FROM_BROWSER=chrome    # 或 safari / firefox / edge / brave
+```
+
+这样 yt-dlp 会自动从 Chrome 的 cookie 数据库里抽 YouTube 登录态。前提：你 Chrome 已经登录了 YouTube 账号。
+
+不想用浏览器 cookie 也可以手贴：
+```ini
+YT_COOKIE=YSC=xxx; VISITOR_INFO1_LIVE=xxx; (从浏览器 F12 拷)
+```
+
+## 国内网络
+
+YT Music / Anthropic API 都需要走代理：
+
+```ini
+HTTPS_PROXY=http://127.0.0.1:7890    # v2rayN 默认 10808, Clash 默认 7890
+HTTP_PROXY=http://127.0.0.1:7890
+```
+
+`claude.js` 会自动认这两个变量，走 https-proxy-agent。yt-dlp 也会自动认。
+
+## QQ 音乐 / 汽水音乐
+
+代码里有占位 (`server/sources/qq.js`, `douyin.js`), **目前不可用**。腾讯 / 字节系把 API 锁得很死, 第三方 wrapper 项目 (jsososo/QQMusicApi 等) 自 2022 年起没更新, 上游接口早就变了。如果以后有靠谱的 wrapper 出现可以重启这条线。
 
 ---
 
@@ -344,6 +324,11 @@ node scripts/spotify-auth.js
 - `feedback.liked / disliked` — 你点过 ♡ 和 🖤 的歌，prompt 里会注入 "多推类似的 / 避开"
 - `plays[-10:]` — 最近 10 次播放，避免重复
 - `messages[-6:]` — 最近 6 条对话上下文
+- `playMode` — 你选的播放模式 (顺序/随机/单曲循环), 跨重启保留
+
+还有两个**自动同步**的输入 (跑过对应脚本后自动注入):
+- `user/spotify-listening.json` — Spotify Top Artists + Liked Songs (24h 自动刷新)
+- `state/netease-cookie.json` — 网易云登录态 (让 netease 拉到 VIP/海外曲)
 
 ---
 
@@ -362,9 +347,14 @@ node scripts/spotify-auth.js
 | 操作 | 效果 |
 |---|---|
 | 点 ▶ / ⏸ | 播放 / 暂停（不会丢当前歌，跟 Next 不同） |
-| 点 ⏭ | 下一首 |
+| 点 ⏭ | 下一首 (尊重当前模式: 随机 → 随机一首; 单曲循环 → 跳出循环到下一首) |
+| 点 模式按钮 (≡→ / ⇄ / ↻) | 切顺序 / 随机 / 单曲循环 |
 | 点 ♡ | 标记喜欢；再点取消 |
-| 点 🖤 (心碎) | 标记不喜欢 + 自动切下一首 |
+| 点 🖤 (心碎) | 标记不喜欢 + 自动切下一首 + 底部 5s 撤回 toast |
+| 点 toast 里 [撤回] | 取消刚才的 dislike (5s 内有效) |
+| tabs 行最右 ⋯ | 看历史 dislike 列表, 每条 ✕ 撤回 |
+| 待播 tab 顶 [清空] | 一键清空待播列表 |
+| 待播 tab 顶 [换一批] | 清空 + 让 Claude 重推一批 |
 | 拖进度条 | seek，hover 时变粗 + 出白色发光圆点 |
 | 双击歌词某行 | 跳到那一行的时间戳 |
 | 手动滚歌词 | 静止 4s 自动回到当下行 |
@@ -385,30 +375,39 @@ claudio/
 │   ├── claude.js                 Anthropic API 适配器 (支持代理)
 │   ├── music.js                  多音源调度器 + fallback
 │   ├── sources/                  各音源适配器 (同接口)
-│   │   ├── netease.js            网易云 (走 NeteaseCloudMusicApi :3000)
-│   │   ├── qq.js                 QQ 音乐 (直连 c.y.qq.com / u.y.qq.com)
-│   │   ├── ytmusic.js            YT Music (yt-dlp + 流代理)
+│   │   ├── netease.js            网易云 (走 NeteaseCloudMusicApi :3000 + cookie 持久化)
+│   │   ├── ytmusic.js            YT Music (yt-dlp + 流代理 + artist 排序)
+│   │   ├── qq.js                 QQ 音乐 (占位, 上游 wrapper 死了)
 │   │   └── douyin.js             汽水音乐 (占位, 没好的公开 API)
+│   ├── taste-sources/
+│   │   └── spotify.js            Spotify 口味画像同步 (24h TTL)
 │   ├── tts.js                    ElevenLabs 语音合成 + 缓存
 │   ├── router.js                 意图分流 (control / play / chat)
 │   ├── context.js                组装 prompt (主对话 / 间奏报幕)
 │   └── state.js                  状态持久化 (JSON)
 ├── pwa/                          播放器前端
 │   ├── index.html
-│   ├── app.js                    播放 + 歌词 + 队列 + 反馈 + 鼠标动效
+│   ├── app.js                    播放 + 歌词 + 队列 + 模式 + dislike-undo + 鼠标动效
 │   ├── style.css                 Discord 玻璃 × 风景图 × 流星
 │   └── manifest.json
+├── scripts/
+│   ├── netease-auth.js           一次性网易云 QR 扫码登录
+│   └── spotify-auth.js           一次性 Spotify OAuth 授权
 ├── prompts/dj-persona.md         DJ 人设 (BBC Radio 3 风)
 ├── user/                         你的个人语料
 │   ├── taste.md
 │   ├── routines.md
 │   └── playlists.json
+├── docs/superpowers/             设计文档 + 实现计划
 └── .env                          密钥 (自己创建,不上 git)
 ```
 
-运行时自动生成：
+运行时自动生成 (都 gitignored):
 ```
-state/state.json                  播放历史 + 队列 + 反馈 + DJ 间奏节奏
+state/state.json                  播放历史 + 队列 + 反馈 + 模式 + DJ 间奏节奏
+state/netease-cookie.json         网易云登录 cookie (跑过 netease-auth.js 后)
+state/spotify-token.json          Spotify OAuth token (跑过 spotify-auth.js 后)
+user/spotify-listening.json       同步下来的 Top Artists + Liked Songs (24h 自动刷)
 tts_cache/<hash>.mp3              真人嗓缓存 (相同文本不重合成)
 ```
 
@@ -435,14 +434,16 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 
 # —— 音源开关 ——
-MUSIC_SOURCES=netease,qq,ytmusic   # 优先级,左到右,逗号分隔
+MUSIC_SOURCES=netease,ytmusic      # 优先级,左到右,逗号分隔
 NCM_BASE=http://localhost:3000     # 网易云 API 地址
-QQ_UIN=                            # QQ 音乐 VIP 解锁
-QQ_QM_KEYST=
-QQ_COOKIE=                         # 或者整段 cookie 头一贴 (覆盖 uin+qm_keyst)
 YT_COOKIES_FROM_BROWSER=chrome     # YT 借浏览器登录态
 YT_COOKIE=                         # 或手贴 cookie
+YT_COOKIES_FILE=                   # Docker 推荐: 挂载 cookies.txt 路径
 YT_DLP_BIN=yt-dlp                  # 自定义 yt-dlp 路径
+
+# —— Spotify 口味画像 (可选) ——
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
 
 # —— DJ 间奏 ——
 DJ_AUTO_INTRO=1                    # 设 0 关闭 "每 2-4 首一段过渡词"
