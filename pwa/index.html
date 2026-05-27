@@ -64,9 +64,24 @@
               <button id="btn-play" aria-label="播放/暂停" class="ctrl ctrl-main">▶</button>
               <button id="btn-next" aria-label="下一首" class="ctrl" title="下一首">⏭</button>
               <button id="btn-mode" class="ctrl" title="顺序播放">
-                <span class="mode-icon" data-mode="sequential">→</span>
-                <span class="mode-icon" data-mode="shuffle" hidden>⇄</span>
-                <span class="mode-icon" data-mode="loop" hidden>↻</span>
+                <svg class="mode-icon" data-mode="sequential" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 12 H19"/>
+                  <path d="M15 8 L19 12 L15 16"/>
+                </svg>
+                <svg class="mode-icon" data-mode="shuffle" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                  <path d="M3 7 H8 L16 17 H21"/>
+                  <path d="M18 14 L21 17 L18 20"/>
+                  <path d="M3 17 H8 L16 7 H21"/>
+                  <path d="M18 4 L21 7 L18 10"/>
+                </svg>
+                <svg class="mode-icon" data-mode="loop" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                  <path d="M3 12 V8 A4 4 0 0 1 7 4 H17"/>
+                  <path d="M14 1 L17 4 L14 7"/>
+                  <path d="M21 12 V16 A4 4 0 0 1 17 20 H7"/>
+                  <path d="M10 17 L7 20 L10 23"/>
+                  <path d="M11 10 L12 9 L12 15"/>
+                  <path d="M10.5 15 H13.5"/>
+                </svg>
               </button>
               <button id="btn-like" aria-label="喜欢" class="ctrl ctrl-fb" title="喜欢这首,多推类似的">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
