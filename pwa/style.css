@@ -1074,3 +1074,45 @@ footer {
   }
   .grid-spot { display: none; }
 }
+
+/* ============================================
+   队列 toolbar (清空 / 换一批)
+   ============================================ */
+.queue-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.q-action {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+  font-family: var(--font-zh);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+.q-action:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--border-hi);
+  background: rgba(255,255,255,0.03);
+}
+.q-action:active:not(:disabled) { transform: translateY(1px); }
+.q-action:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ============================================
+   模式按钮 (顺序 / 随机 / 单曲循环)
+   ============================================ */
+#btn-mode {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1;
+}
+#btn-mode .mode-icon { display: inline-block; }
+#btn-mode.active {
+  color: var(--teal);
+  border-color: var(--teal-dim);
+}
