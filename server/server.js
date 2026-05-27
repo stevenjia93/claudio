@@ -13,6 +13,7 @@ import * as music from './music.js';
 import * as claude from './claude.js';
 import * as tts from './tts.js';
 import { route } from './router.js';
+import * as spotifyTaste from './taste-sources/spotify.js';
 import { assemble, assembleIntro } from './context.js';
 
 const DJ_AUTO_INTRO = process.env.DJ_AUTO_INTRO !== '0' && process.env.DJ_AUTO_INTRO !== 'false';
@@ -384,6 +385,16 @@ app.get('/api/plan/today', (req, res) => {
 
 // ——— 启动 ———
 await state.load();
+
+// 后台异步刷 Spotify 听歌信号 (24h TTL, 不阻塞启动)
+spotifyTaste.refreshIfStale().then(result => {
+  if (result === 'refreshed') console.log('[spotify] 听歌信号已刷新');
+  else if (result === 'cached') console.log('[spotify] 听歌信号缓存 (< 24h)');
+  else if (result === 'no-auth') console.log('[spotify] 没授权, 跳过 (要的话跑 scripts/spotify-auth.js)');
+  // 'failed' 状态: refreshIfStale 内部已 console.warn, 这里不重复打
+}).catch(e => {
+  console.warn('[spotify] refresh 异步挂了 (不影响启动):', e.message);
+});
 
 // 找局域网 IP,启动时打出来,手机要用
 import os from 'node:os';
