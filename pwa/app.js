@@ -1344,14 +1344,29 @@ document.addEventListener('keydown', (e) => {
 // ============================================
 (function setupAudioVisualizer() {
   const artwork = document.querySelector('.card-now .artwork');
-  if (!artwork) return;
+  const canvas = document.getElementById('viz-bars');
+  if (!artwork || !canvas) return;
   const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (REDUCE_MOTION) return;
+
+  const ctx = canvas.getContext('2d');
+  const BAR_COUNT = 56;        // 56 根条
+  const dpr = window.devicePixelRatio || 1;
+
+  // 处理 retina + 自适应宽度: ResizeObserver 重新 set canvas 的内部分辨率
+  function fitCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.max(1, Math.floor(rect.width  * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  }
+  fitCanvas();
+  new ResizeObserver(fitCanvas).observe(canvas);
 
   let audioCtx = null;
   let analyser = null;
   let bins = null;
-  let bass = 0;             // 0-1, 低通后的 bass 强度
+  let smoothed = null;         // 每根 bar 一个低通后的强度
+  let bass = 0;                // 封面用的轻反应
   let initFailed = false;
 
   function lazyInit() {
@@ -1360,14 +1375,15 @@ document.addEventListener('keydown', (e) => {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const src = audioCtx.createMediaElementSource(audio);
       analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.7;
+      analyser.fftSize = 512;                   // 256 bins, 给 bars 分组够细
+      analyser.smoothingTimeConstant = 0.78;
       bins = new Uint8Array(analyser.frequencyBinCount);
+      smoothed = new Float32Array(BAR_COUNT);
       src.connect(analyser);
-      analyser.connect(audioCtx.destination);   // 别忘了, 不然就没声音了
+      analyser.connect(audioCtx.destination);   // 别忘了 destination, 不然就没声音了
       requestAnimationFrame(tick);
     } catch (e) {
-      console.warn('[viz] Web Audio init 失败, fallback CSS pulse:', e.message);
+      console.warn('[viz] Web Audio init 失败:', e.message);
       initFailed = true;
     }
   }
@@ -1377,32 +1393,77 @@ document.addEventListener('keydown', (e) => {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   });
 
+  // 频谱条用 log 分布映射到 BAR_COUNT — 让低频不被高频压扁
+  // 只取低-中频段 (前 ~70% 的 bin, 高频通常空气感太弱画出来看不见)
+  const USEFUL_BINS = () => Math.floor((analyser?.frequencyBinCount || 256) * 0.7);
+  function drawBars() {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const useful = USEFUL_BINS();
+    const barOuterW = W / BAR_COUNT;
+    const barInnerW = barOuterW * 0.55;
+    const radius = Math.min(barInnerW / 2, 4 * dpr);
+
+    // 渐变色: 中段偏粉 (跟 claudio 主色 var(--coral) 呼应)
+    const grad = ctx.createLinearGradient(0, H, 0, 0);
+    grad.addColorStop(0, 'rgba(255, 107, 142, 0.95)');
+    grad.addColorStop(1, 'rgba(180, 140, 255, 0.95)');
+    ctx.fillStyle = grad;
+
+    for (let i = 0; i < BAR_COUNT; i++) {
+      // log 分布 (低频拿到更多 bin)
+      const lo = Math.floor(Math.pow(i / BAR_COUNT, 1.7) * useful);
+      const hi = Math.max(lo + 1, Math.floor(Math.pow((i + 1) / BAR_COUNT, 1.7) * useful));
+      let max = 0;
+      for (let j = lo; j < hi && j < useful; j++) {
+        if (bins[j] > max) max = bins[j];
+      }
+      const target = max / 255;          // 0-1
+      // 每根 bar 独立低通 (上跳快, 下落慢, 像 EQ 表头)
+      const prev = smoothed[i];
+      smoothed[i] = target > prev ? prev * 0.4 + target * 0.6 : prev * 0.85 + target * 0.15;
+
+      const barH = Math.max(2 * dpr, smoothed[i] * H);
+      const x = i * barOuterW + (barOuterW - barInnerW) / 2;
+      const y = H - barH;
+      // 圆角矩形 (Path2D + roundRect 现代浏览器都有)
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, barInnerW, barH, radius);
+      else ctx.rect(x, y, barInnerW, barH);
+      ctx.fill();
+    }
+  }
+
   function tick() {
     requestAnimationFrame(tick);
     if (!analyser) return;
-    // audio 暂停时清掉 inline style, 让 CSS 的 cover-pulse 重新接手
+
     if (audio.paused) {
+      // 暂停: 清画布 + 清封面 inline (留给 CSS pulse 接手)
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (artwork.style.transform) {
         artwork.style.transform = '';
         artwork.style.boxShadow = '';
         bass = 0;
+        if (smoothed) smoothed.fill(0);
       }
       return;
     }
     analyser.getByteFrequencyData(bins);
-    // Bass = 前 8 个 bin 的均值 (大约 0-1500 Hz @ 44.1kHz, 落鼓+贝斯区间)
-    let sum = 0;
-    for (let i = 0; i < 8; i++) sum += bins[i];
-    const raw = sum / 8 / 255;       // 0-1
-    // 软低通 — 防鼓点瞬时跳得太炸
-    bass = bass * 0.55 + raw * 0.45;
 
-    // 映射到 transform + box-shadow
-    const scale = 1 + bass * 0.07;             // 1.00 - 1.07
-    const rot   = (bass - 0.5) * 1.4;          // -0.7° - +0.7°
-    artwork.style.transform = `scale(${scale.toFixed(3)}) rotate(${rot.toFixed(2)}deg)`;
+    // 封面 bass 反应 — 收着点, 不抢 bars 戏
+    let sum = 0;
+    for (let i = 0; i < 6; i++) sum += bins[i];
+    const raw = (sum / 6) / 255;
+    bass = bass * 0.6 + raw * 0.4;
+    const scale = 1 + bass * 0.04;             // 1.00 - 1.04 (比之前 0.07 弱)
+    artwork.style.transform = `scale(${scale.toFixed(3)})`;
     artwork.style.boxShadow =
-      `0 ${(6 + bass * 14).toFixed(1)}px ${(22 + bass * 22).toFixed(0)}px -8px rgba(255,107,142,${(0.40 + bass * 0.35).toFixed(2)}),` +
-      ` 0 0 0 1px rgba(255,255,255,${(0.05 + bass * 0.06).toFixed(2)}) inset`;
+      `0 ${(6 + bass * 8).toFixed(1)}px ${(22 + bass * 14).toFixed(0)}px -8px rgba(255,107,142,${(0.40 + bass * 0.25).toFixed(2)})`;
+
+    // 主视觉: 频谱条
+    drawBars();
   }
 })();

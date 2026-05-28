@@ -1175,6 +1175,23 @@ footer {
 }
 
 /* ============================================
+   音频频谱条 — JS 画 bars, 左右淡出, 跟播放状态联动
+   ============================================ */
+.viz-bars {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-top: 14px;
+  opacity: 0;
+  transition: opacity 0.5s;
+  /* 两侧淡出, 让条不会硬切到边 */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  pointer-events: none;
+}
+.card-now.playing .viz-bars { opacity: 0.85; }
+
+/* ============================================
    "⋯" 暗藏入口 (查看讨厌过的歌) + dislike 管理面板
    ============================================ */
 .tab-more {
