@@ -5,6 +5,14 @@
 state/
 tts_cache/
 
+# 同步下来的私人听歌数据 (Spotify Liked, Top Artists, 后续 Last.fm)
+user/spotify-listening.json
+user/lastfm-listening.json
+user/listening-history.json
+
+# DJ 头像 — 用户自己的, 不强制进 git
+prompts/dj-avatar.*
+
 # Node
 node_modules/
 npm-debug.log
