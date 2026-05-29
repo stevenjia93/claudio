@@ -43,6 +43,15 @@ const undoToast = $('undo-toast');
 const undoToastText = $('undo-toast-text');
 const undoToastBtn = $('undo-toast-btn');
 const wsPill = $('ws-pill');
+const brandName = $('brand-name');
+const djCardOverlay = $('dj-card-overlay');
+const djCardClose = $('dj-card-close');
+const djCardTagline = $('dj-card-tagline');
+const djCardIntro = $('dj-card-intro');
+const djCardListener = $('dj-card-listener');
+const djCardOnair = $('dj-card-onair');
+const djCardGenres = $('dj-card-genres');
+const djCardAvatarImg = $('dj-card-avatar-img');
 const cardNow = document.querySelector('.card-now');
 const cardLyrics = $('card-lyrics');
 const lyricsTrack = $('lyrics-track');
@@ -468,6 +477,73 @@ if (dislikedOverlay) {
     if (e.target === dislikedOverlay) closeDislikedOverlay();
   });
 }
+
+// ============================================
+//  DJ profile 浮层 — 点顶部 "Claudio" 字打开
+// ============================================
+async function openDjCard() {
+  if (!djCardOverlay) return;
+  // 先展示, 数据并行拉
+  djCardOverlay.hidden = false;
+  try {
+    const r = await fetch('/api/dj-card');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    if (djCardTagline) djCardTagline.textContent = d.tagline || '—';
+    if (djCardOnair)   djCardOnair.textContent = d.onAir || '24/7';
+    if (djCardListener) djCardListener.textContent = String(d.listeners ?? '?');
+    // intro: 每行一个 div, 英文行 italic 处理 (简单检测拉丁字符 > 中文)
+    if (djCardIntro) {
+      djCardIntro.innerHTML = '';
+      for (const line of (d.intro || [])) {
+        const div = document.createElement('div');
+        // 粗略: 全 ASCII (含空格 + 标点) 就当英文给 italic
+        const isEn = /^[\sA-Za-z0-9.,!?'"\-:;()&]+$/.test(line);
+        if (isEn) div.classList.add('en');
+        div.textContent = line;
+        djCardIntro.appendChild(div);
+      }
+    }
+    // genres: 渲染成 chips
+    if (djCardGenres) {
+      djCardGenres.innerHTML = '';
+      for (const g of (d.genres || [])) {
+        const span = document.createElement('span');
+        span.className = 'dj-genre-chip';
+        span.textContent = g;
+        djCardGenres.appendChild(span);
+      }
+    }
+  } catch (e) {
+    console.warn('[dj-card]', e.message);
+  }
+}
+function closeDjCard() {
+  if (djCardOverlay) djCardOverlay.hidden = true;
+}
+// 头像加载失败时标记一下, CSS 的 fallback SVG 接管
+if (djCardAvatarImg) {
+  djCardAvatarImg.addEventListener('error', () => {
+    djCardAvatarImg.dataset.broken = '1';
+    djCardAvatarImg.style.display = 'none';
+  });
+}
+if (brandName) {
+  brandName.addEventListener('click', openDjCard);
+  brandName.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDjCard(); }
+  });
+}
+if (djCardClose) djCardClose.addEventListener('click', closeDjCard);
+if (djCardOverlay) {
+  djCardOverlay.addEventListener('click', (e) => {
+    if (e.target === djCardOverlay) closeDjCard();
+  });
+}
+// Escape 关
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && djCardOverlay && !djCardOverlay.hidden) closeDjCard();
+});
 
 audio.addEventListener('play', () => {
   btnPlay.textContent = '⏸';

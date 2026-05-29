@@ -328,6 +328,55 @@ app.get('/api/proxy/audio', async (req, res) => {
 });
 
 // ——— API: 看哪些音源在跑 ———
+// ——— API: DJ 个人介绍卡 ———
+// 解析 prompts/dj-card.md 的 ## sections + 加实时听众数 (= WS 客户端数)
+app.get('/api/dj-card', async (req, res) => {
+  try {
+    const raw = await fs.readFile(path.resolve('../prompts/dj-card.md'), 'utf8');
+    const sections = {};
+    let key = null;
+    let buf = [];
+    for (const line of raw.split('\n')) {
+      const m = line.match(/^##\s+(.+?)\s*$/);
+      if (m) {
+        if (key) sections[key] = buf.join('\n').trim();
+        key = m[1].toLowerCase().trim();
+        buf = [];
+      } else if (key) {
+        buf.push(line);
+      }
+    }
+    if (key) sections[key] = buf.join('\n').trim();
+
+    const genres = (sections.genres || '')
+      .split(/[,，、]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    res.json({
+      tagline: sections.tagline || '',
+      intro: (sections.intro || '').split('\n').map(s => s.trim()).filter(Boolean),
+      genres,
+      listeners: clients.size,
+      onAir: '24/7',
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 用户的 DJ 头像 — 扔 prompts/dj-avatar.{png,jpg,jpeg,webp} 进去自动用
+app.get('/dj-avatar', async (req, res) => {
+  for (const ext of ['png', 'jpg', 'jpeg', 'webp']) {
+    const p = path.resolve(`../prompts/dj-avatar.${ext}`);
+    try {
+      await fs.access(p);
+      return res.sendFile(p);
+    } catch {}
+  }
+  res.status(404).end();
+});
+
 app.get('/api/sources', (req, res) => {
   res.json(music.listSources());
 });
