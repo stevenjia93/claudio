@@ -65,7 +65,9 @@ let pendingAutoStart = false;
 // ============================================
 let ws;
 function connectWs() {
-  ws = new WebSocket(`ws://${location.host}/stream`);
+  // HTTPS 页面 → wss; HTTP → ws. Cloudflare Tunnel 等 HTTPS 反代时必须切.
+  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${wsProto}//${location.host}/stream`);
   ws.onopen = () => {
     wsPill.textContent = '● ws';
     wsPill.classList.add('live');

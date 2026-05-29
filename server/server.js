@@ -22,6 +22,8 @@ const PORT = process.env.PORT || 8080;
 const MOCK_CLAUDE = process.env.MOCK_CLAUDE === '1';
 
 const app = express();
+// 走 Cloudflare Tunnel / nginx 等反代时, 透过 X-Forwarded-* 拿到真实协议 + 客户端 IP
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.static(path.resolve('../pwa')));
 app.use('/tts', express.static(tts.cacheDir()));  // 真人声音频直接静态伺服

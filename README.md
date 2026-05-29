@@ -427,6 +427,104 @@ Mac 跑着 server，手机连同一个 WiFi：
 
 ---
 
+## 出门也能用 / 朋友也能听 (Cloudflare Tunnel + Access)
+
+Mac 跑着 claudio 不动, 但通过 Cloudflare 给一个公网 HTTPS 域名 + 登录鉴权。**不公开**, 只有你白名单的邮箱能进。
+
+### 架构
+
+```
+[你 / 朋友 手机或电脑]
+       ↓ https://claudio.<你域名>.com (任意网络都通)
+[Cloudflare 边缘 — Access 登录验证 (邮箱 magic link)]
+       ↓ 加密 tunnel
+[你 Mac — cloudflared 进程]
+       ↓ localhost:8080
+[claudio]
+```
+
+### 前提
+
+- 一个域名挂在 Cloudflare DNS (随便买一个 .xyz / .me 几块钱一年, NS 改到 Cloudflare 即可)
+- Mac 要常开, 合盖会睡 → 系统设置 → 电池 → "防止 Mac 自动睡眠" 勾上
+
+### 一次性搭建 (~15 分钟)
+
+#### 1. 装 cloudflared 并登录
+
+```bash
+brew install cloudflared
+cloudflared tunnel login              # 开浏览器选你域名授权
+cloudflared tunnel create claudio     # 创建一个叫 claudio 的隧道
+```
+
+留意输出里的 **tunnel id** (一串 UUID), 后面要用。
+
+#### 2. 配置隧道
+
+新建 `~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: <你刚才那个 UUID>
+credentials-file: /Users/<你用户名>/.cloudflared/<UUID>.json
+
+ingress:
+  - hostname: claudio.<你域名>.com
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+#### 3. 把域名指向隧道
+
+```bash
+cloudflared tunnel route dns claudio claudio.<你域名>.com
+```
+
+#### 4. 跑隧道 (常驻)
+
+```bash
+cloudflared tunnel run claudio
+```
+
+把这条放进 `tmux` / `nohup` / 写个 launchd plist 让它开机自启。
+
+#### 5. 加 Cloudflare Access 登录页 (关键, 不加就是开放代理)
+
+在 Cloudflare Dashboard:
+- **Zero Trust** (左边) → **Access** → **Applications** → **Add an application** → **Self-hosted**
+- Application domain: `claudio.<你域名>.com`
+- 给一个 policy:
+  - Action: **Allow**
+  - Rule: **Emails** → 填你自己邮箱 + 朋友邮箱列表
+- 保存
+
+### 试用
+
+- 浏览器开 `https://claudio.<你域名>.com`
+- 跳到 Cloudflare 登录页 → 输你邮箱 → 收到 magic link → 点链接登录
+- 跳回 claudio, 跟在 localhost 一样用
+
+朋友想听 → 让他们也用白名单里那个邮箱登录, 同样走 magic link。
+
+### 不想搞域名 / 临时测一下
+
+跳过域名和 Access, 走一次性临时隧道:
+
+```bash
+cloudflared tunnel --url http://localhost:8080
+```
+
+会吐一个 `https://<随机词>.trycloudflare.com` 出来。**没鉴权**, 任何人扫到这个 URL 都能用你的 Anthropic / ElevenLabs 烧钱, 只适合自己 5 分钟测一下。
+
+### 流量
+
+- mp3 128kbps ≈ 1 MB/分钟; 朋友 1 小时 ~60 MB
+- 网易 VIP 走 FLAC ~5 MB/分钟; 1 小时 ~300 MB
+- Cloudflare 流量目前不计费 (个人免费版)
+- Mac 这边走家里带宽
+
+---
+
 ## 配置开关速查
 
 ```ini
