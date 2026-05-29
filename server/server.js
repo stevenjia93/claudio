@@ -329,38 +329,23 @@ app.get('/api/proxy/audio', async (req, res) => {
 
 // ——— API: 看哪些音源在跑 ———
 // ——— API: DJ 个人介绍卡 ———
-// 解析 prompts/dj-card.md 的 ## sections + 加实时听众数 (= WS 客户端数)
+// 现在走 dj-card.js 模块, 内容由 Claude 从 taste.md + Spotify 数据反推出来.
+// 服务端按文件 hash 缓存, 输入没变就直接复用. 不每次开浮层都烧 API.
+import * as djCard from './dj-card.js';
 app.get('/api/dj-card', async (req, res) => {
   try {
-    const raw = await fs.readFile(path.resolve('../prompts/dj-card.md'), 'utf8');
-    const sections = {};
-    let key = null;
-    let buf = [];
-    for (const line of raw.split('\n')) {
-      const m = line.match(/^##\s+(.+?)\s*$/);
-      if (m) {
-        if (key) sections[key] = buf.join('\n').trim();
-        key = m[1].toLowerCase().trim();
-        buf = [];
-      } else if (key) {
-        buf.push(line);
-      }
-    }
-    if (key) sections[key] = buf.join('\n').trim();
-
-    const genres = (sections.genres || '')
-      .split(/[,，、]/)
-      .map(s => s.trim())
-      .filter(Boolean);
-
+    const card = await djCard.getCard();
     res.json({
-      tagline: sections.tagline || '',
-      intro: (sections.intro || '').split('\n').map(s => s.trim()).filter(Boolean),
-      genres,
+      tagline: card.tagline,
+      description: card.description || [],
+      genres: card.genres || [],
+      topShort: card.topShort || [],
+      topLong: card.topLong || [],
       listeners: clients.size,
       onAir: '24/7',
     });
   } catch (e) {
+    console.warn('[dj-card]', e.message);
     res.status(500).json({ error: e.message });
   }
 });

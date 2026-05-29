@@ -221,14 +221,23 @@
           <span class="dj-card-stat-value" id="dj-card-onair">24/7</span>
         </div>
         <div class="dj-card-stat">
-          <span class="dj-card-stat-label">GENRES</span>
-          <span class="dj-card-stat-value">∞</span>
-        </div>
-        <div class="dj-card-stat">
           <span class="dj-card-stat-label">LISTENER</span>
           <span class="dj-card-stat-value" id="dj-card-listener">1</span>
         </div>
       </div>
+
+      <!-- Spotify 反推的"最近沉迷" + "长期挚爱" 两列 -->
+      <div class="dj-card-listening" id="dj-card-listening" hidden>
+        <div class="dj-card-listening-col">
+          <div class="dj-card-stat-label">最近沉迷</div>
+          <ul class="dj-card-list" id="dj-card-short-list"></ul>
+        </div>
+        <div class="dj-card-listening-col">
+          <div class="dj-card-stat-label">长期挚爱</div>
+          <ul class="dj-card-list" id="dj-card-long-list"></ul>
+        </div>
+      </div>
+
       <div class="dj-card-genres" id="dj-card-genres"></div>
     </div>
   </div>

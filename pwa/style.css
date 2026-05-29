@@ -1336,6 +1336,38 @@ footer {
   letter-spacing: 0.02em;
 }
 
+/* 两列 listening: 最近沉迷 / 长期挚爱 */
+.dj-card-listening {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 22px 0;
+}
+.dj-card-listening[hidden] { display: none; }
+.dj-card-list {
+  list-style: none;
+  padding: 8px 0 0;
+  margin: 0;
+}
+.dj-card-list li {
+  font-size: 13px;
+  color: var(--ink);
+  padding: 3px 0;
+  font-family: var(--font-zh);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dj-card-list li::before {
+  content: "· ";
+  color: var(--muted);
+}
+.dj-card-list .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+.dj-card-list .empty::before { content: ""; }
+
 /* 流派 chip */
 .dj-card-genres {
   display: flex;

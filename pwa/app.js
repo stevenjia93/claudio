@@ -52,6 +52,9 @@ const djCardListener = $('dj-card-listener');
 const djCardOnair = $('dj-card-onair');
 const djCardGenres = $('dj-card-genres');
 const djCardAvatarImg = $('dj-card-avatar-img');
+const djCardListening = $('dj-card-listening');
+const djCardShortList = $('dj-card-short-list');
+const djCardLongList = $('dj-card-long-list');
 const cardNow = document.querySelector('.card-now');
 const cardLyrics = $('card-lyrics');
 const lyricsTrack = $('lyrics-track');
@@ -492,19 +495,42 @@ async function openDjCard() {
     if (djCardTagline) djCardTagline.textContent = d.tagline || '—';
     if (djCardOnair)   djCardOnair.textContent = d.onAir || '24/7';
     if (djCardListener) djCardListener.textContent = String(d.listeners ?? '?');
-    // intro: 每行一个 div, 英文行 italic 处理 (简单检测拉丁字符 > 中文)
+    // description: 每行一个 div, 英文行 italic 处理 (粗略检测全拉丁字符)
     if (djCardIntro) {
       djCardIntro.innerHTML = '';
-      for (const line of (d.intro || [])) {
+      for (const line of (d.description || [])) {
         const div = document.createElement('div');
-        // 粗略: 全 ASCII (含空格 + 标点) 就当英文给 italic
-        const isEn = /^[\sA-Za-z0-9.,!?'"\-:;()&]+$/.test(line);
+        const isEn = /^[\sA-Za-z0-9.,!?'"\-:;()&🎧🎙️]+$/.test(line);
         if (isEn) div.classList.add('en');
         div.textContent = line;
         djCardIntro.appendChild(div);
       }
     }
-    // genres: 渲染成 chips
+    // 最近沉迷 / 长期挚爱 — Spotify 数据子集. 两个都空就整个 hidden
+    function fillList(ul, items) {
+      if (!ul) return;
+      ul.innerHTML = '';
+      if (items.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = '(数据少, 还在攒)';
+        ul.appendChild(li);
+        return;
+      }
+      for (const name of items) {
+        const li = document.createElement('li');
+        li.textContent = name;
+        ul.appendChild(li);
+      }
+    }
+    const shortItems = d.topShort || [];
+    const longItems = d.topLong || [];
+    fillList(djCardShortList, shortItems);
+    fillList(djCardLongList, longItems);
+    if (djCardListening) {
+      djCardListening.hidden = (shortItems.length === 0 && longItems.length === 0);
+    }
+    // genres chips
     if (djCardGenres) {
       djCardGenres.innerHTML = '';
       for (const g of (d.genres || [])) {
