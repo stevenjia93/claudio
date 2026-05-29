@@ -181,17 +181,16 @@ function extractArtistHint(query) {
   return '';
 }
 
-function rankByArtist(candidates, hint) {
+// query 含 artist 时只认 artist 匹配的, 防翻唱占位 (李志/老狼之类的兜底案例)
+function filterByArtist(candidates, hint) {
   if (!hint) return candidates;
-  const matched = candidates.filter(c => (c.artist || '').toLowerCase().includes(hint));
-  const others = candidates.filter(c => !matched.includes(c));
-  return [...matched, ...others];
+  return candidates.filter(c => (c.artist || '').toLowerCase().includes(hint));
 }
 
 export async function findPlayable(query) {
   const candidates = await search(query, 5);
   const hint = extractArtistHint(query);
-  const ranked = rankByArtist(candidates, hint);
+  const ranked = filterByArtist(candidates, hint);
   for (const c of ranked) {
     try {
       const d = await detailWithUrl(c.id);

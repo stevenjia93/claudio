@@ -89,15 +89,12 @@ function extractArtistHint(query) {
   return '';
 }
 
-// 一句 query 拿到可播的第一条 — artist 匹配的优先
+// 一句 query 拿到可播的第一条 — query 含 artist 时只认 artist 匹配的, 防翻唱占位
 export async function findPlayable(query) {
   const candidates = await search(query, 5);
   const hint = extractArtistHint(query);
   const ranked = hint
-    ? [
-        ...candidates.filter(c => (c.artist || '').toLowerCase().includes(hint)),
-        ...candidates.filter(c => !(c.artist || '').toLowerCase().includes(hint))
-      ]
+    ? candidates.filter(c => (c.artist || '').toLowerCase().includes(hint))
     : candidates;
   for (const c of ranked) {
     const url = await songUrl(c.id);
