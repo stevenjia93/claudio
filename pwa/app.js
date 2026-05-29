@@ -547,11 +547,14 @@ async function openDjCard() {
 function closeDjCard() {
   if (djCardOverlay) djCardOverlay.hidden = true;
 }
-// 头像加载失败时标记一下, CSS 的 fallback SVG 接管
+// 头像: 默认显示 SVG fallback. img 加载成功才 .loaded 显示, 覆盖 SVG.
+// 加载失败 (404) 啥都不做, img display:none 保持, SVG 可见.
 if (djCardAvatarImg) {
-  djCardAvatarImg.addEventListener('error', () => {
-    djCardAvatarImg.dataset.broken = '1';
-    djCardAvatarImg.style.display = 'none';
+  djCardAvatarImg.addEventListener('load', () => {
+    // 自然加载 (有 broken 图标的也算 load) — 只在 naturalHeight > 0 才算真有图
+    if (djCardAvatarImg.naturalHeight > 0) {
+      djCardAvatarImg.classList.add('loaded');
+    }
   });
 }
 if (brandName) {

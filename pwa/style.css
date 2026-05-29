@@ -1209,13 +1209,18 @@ footer {
   max-height: 86vh;
   overflow-y: auto;
   padding: 36px 32px 28px;
-  background: var(--bg);
+  /* glass 风格 — 跟主播放卡 / 队列卡 同款 */
+  background: var(--bg-elev);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   border: 1px solid var(--border-hi);
   border-radius: 16px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.55);
-  /* 点状背景 — 像唱片背面网点 */
+  box-shadow:
+    0 24px 64px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  /* 点状背景 — 像唱片背面网点, 但比 bg-elev 透出来的玻璃感更轻 */
   background-image:
-    radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+    radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
   background-size: 14px 14px;
   background-position: 6px 6px;
 }
@@ -1248,23 +1253,25 @@ footer {
   flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
-  background: rgba(255,255,255,0.04);
-  color: var(--ink-dim);
+  background: rgba(255,107,142,0.04);
+  color: var(--coral-dim);
 }
-.dj-card-avatar img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.dj-card-avatar img[src=""], .dj-card-avatar img:not([src]) { display: none; }
 .dj-card-avatar-fallback {
   position: absolute;
   inset: 0;
   width: 100%; height: 100%;
 }
-/* 有真头像时盖住 fallback */
-.dj-card-avatar img:not([data-broken]) ~ .dj-card-avatar-fallback {
-  opacity: 0;
+/* img 默认隐藏 (没文件就 404, JS 拒掉; 加载成功才显示, 覆盖 fallback) */
+.dj-card-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.dj-card-avatar img.loaded {
+  display: block;
+  z-index: 1;
 }
 .dj-card-status-dot {
   position: absolute;
