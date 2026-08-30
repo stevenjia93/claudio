@@ -221,6 +221,72 @@ function appendChat(role, content, meta) {
 }
 
 // ============================================
+// 2.5 语音输入 — 点一下录, 再点一下停 → STT → 走既有 chat 流程
+// ============================================
+const btnMic = $('btn-mic');
+let recorder = null;   // 非 null = 正在录
+
+btnMic.addEventListener('click', () => {
+  if (recorder) { recorder.stop(); return; }
+  startRecording().catch(err => {
+    appendChat('assistant', `麦克风打不开: ${err.message} — 手机上要用 HTTPS 访问才有麦克风权限 (见 README 的 tailscale serve)`);
+  });
+});
+
+async function startRecording() {
+  if (chatInflight) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('这个环境拿不到 getUserMedia (通常是因为不在 HTTPS/localhost 下)');
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // iOS Safari 只认 mp4, Chrome/Firefox 用 webm+opus
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+    .find(t => MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    stream.getTracks().forEach(t => t.stop());  // 熄掉浏览器的"录音中"红点
+    recorder = null;
+    btnMic.classList.remove('recording');
+    submitVoice(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+  };
+  rec.start();
+  recorder = rec;
+  btnMic.classList.add('recording');
+}
+
+async function submitVoice(blob) {
+  chatInflight = true;
+  reflectInflight();
+  let text = '';
+  try {
+    const res = await fetch('/api/stt', {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'audio/webm' },
+      body: blob
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 120)}`);
+    }
+    ({ text } = await res.json());
+  } catch (err) {
+    appendChat('assistant', `语音识别出错: ${err.message}`);
+    return;
+  } finally {
+    chatInflight = false;
+    reflectInflight();
+  }
+  if (!text) {
+    appendChat('assistant', '没听清, 再说一遍?');
+    return;
+  }
+  chatInput.value = text;
+  chatForm.requestSubmit();   // 复用文字 chat 全套逻辑 (control 秒响应 / play 直连 / claude)
+}
+
+// ============================================
 // 3. 歌曲音频
 // ============================================
 btnPlay.addEventListener('click', () => {
@@ -410,6 +476,7 @@ function reflectDjLanguageUI() {
 
 function reflectInflight() {
   btnSend.disabled = chatInflight;
+  btnMic.disabled = chatInflight;
   if (btnQueueRefresh) btnQueueRefresh.disabled = chatInflight;
 }
 

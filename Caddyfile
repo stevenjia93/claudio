@@ -1,0 +1,7 @@
+# 云版 HTTPS 入口 (只有 docker-compose.cloud.yml 用它)
+# CLAUDIO_DOMAIN 在 .env 里配, Caddy 自动去 Let's Encrypt 签证书 + 续期.
+# WebSocket (/stream) reverse_proxy 自动透传, 不用额外配.
+{$CLAUDIO_DOMAIN} {
+	encode gzip
+	reverse_proxy claudio:8080
+}

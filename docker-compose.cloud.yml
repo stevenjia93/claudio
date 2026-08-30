@@ -1,0 +1,46 @@
+# claudio 云版 compose — Caddy 自动 HTTPS + 口令门禁
+#
+# 跟本地版 (docker-compose.yml) 的差别:
+#   · claudio 不对外开 8080, 只有 caddy 从容器网络里访问它
+#   · caddy 占 80/443, 用 CLAUDIO_DOMAIN 自动签 Let's Encrypt 证书
+#   · .env 必须多配两项: CLAUDIO_DOMAIN + CLAUDIO_AUTH_TOKEN
+#     (HTTPS 是手机麦克风的硬前提; 口令挡住陌生人烧你的 API 额度)
+#
+# 服务器上用法:
+#   1. 域名加条 A 记录指到服务器 IP
+#   2. 服务器装好 docker; 防火墙/安全组放行 80 + 443
+#   3. 本机跑 ./scripts/deploy-cloud.sh user@服务器IP  (或手动 scp 这仨: 本文件 + Caddyfile + .env)
+#   4. 手机开 https://你的域名 → 输一次口令 → 分享 → 添加到主屏幕
+
+services:
+  claudio:
+    image: ghcr.io/stevenjia93/claudio:latest
+    container_name: claudio
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - claudio-state:/app/state
+      - claudio-tts:/app/tts_cache
+      - ./codex:/root/.codex          # codex 登录态 (deploy 脚本放 auth.json 进来)
+    # YT 要浏览器 cookie 的话跟本地版一样挂 cookies.txt (见 docker-compose.yml 注释)
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: claudio-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env                          # Caddyfile 里的 {$CLAUDIO_DOMAIN} 从这来
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data              # 证书住这, 删了会重签 (有频率限制, 别乱删)
+      - caddy-config:/config
+
+volumes:
+  claudio-state:
+  claudio-tts:
+  caddy-data:
+  caddy-config:

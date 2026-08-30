@@ -33,6 +33,10 @@ RUN cd server && npm ci --omit=dev --no-audit --no-fund
 # 把 NeteaseCloudMusicApi 装到全局, 避免每次启动 npx 现下载
 RUN npm install -g NeteaseCloudMusicApi --no-audit --no-fund
 
+# codex CLI — CLAUDIO_BRAIN=codex 的大脑 (登录态 auth.json 由 volume 挂到 /root/.codex)
+# `codex --version` 是构建期自检: alpine/musl 不兼容会让 build 直接失败, 不带病上线
+RUN npm install -g @openai/codex --no-audit --no-fund && codex --version
+
 # 拷剩下的代码
 COPY . .
 

@@ -1070,6 +1070,30 @@ blockquote {
 }
 .ctrl-send:disabled { opacity: 0.5; cursor: wait; }
 
+.ctrl-mic {
+  align-self: stretch;
+  color: var(--coral);
+  border-color: var(--coral-dim);
+  white-space: nowrap;
+}
+.ctrl-mic:hover {
+  border-color: var(--coral);
+  color: var(--coral);
+  background: rgba(255,107,142,0.06);
+  box-shadow: 0 6px 18px -8px var(--coral), 0 0 0 1px rgba(255,107,142,0.25);
+}
+.ctrl-mic.recording {
+  color: #fff;
+  border-color: var(--coral);
+  background: rgba(255,107,142,0.2);
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,142,0.45); }
+  50%      { box-shadow: 0 0 0 7px rgba(255,107,142,0); }
+}
+.ctrl-mic:disabled { opacity: 0.5; cursor: wait; }
+
 /* ============================================
    底部
    ============================================ */

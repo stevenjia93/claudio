@@ -12,6 +12,7 @@ import * as state from './state.js';
 import * as music from './music.js';
 import * as claude from './claude.js';
 import * as tts from './tts.js';
+import * as stt from './stt.js';
 import { route } from './router.js';
 import * as spotifyTaste from './taste-sources/spotify.js';
 import { assemble, assembleIntro } from './context.js';
@@ -25,6 +26,58 @@ const app = express();
 // 走 Cloudflare Tunnel / nginx 等反代时, 透过 X-Forwarded-* 拿到真实协议 + 客户端 IP
 app.set('trust proxy', 1);
 app.use(express.json());
+
+// ——— 门禁 (云版) ———
+// CLAUDIO_AUTH_TOKEN 设了才启用; 本地开发不设 = 不设防, 行为跟以前完全一样.
+// 三种过闸方式: cookie (浏览器/PWA) · Authorization: Bearer (curl/脚本) · 登录页表单.
+const AUTH_TOKEN = process.env.CLAUDIO_AUTH_TOKEN || '';
+const AUTH_COOKIE = 'claudio_auth';
+
+function isAuthed(req) {
+  if (!AUTH_TOKEN) return true;
+  const m = /(?:^|;\s*)claudio_auth=([^;]+)/.exec(req.headers.cookie || '');
+  if (m && decodeURIComponent(m[1]) === AUTH_TOKEN) return true;
+  return (req.headers.authorization || '') === `Bearer ${AUTH_TOKEN}`;
+}
+
+if (AUTH_TOKEN) {
+  const loginPage = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>claudio · 口令</title>
+<style>
+  body { background:#0a0a14; color:#e8e6e0; font-family:-apple-system,sans-serif;
+         display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+  form { text-align:center; }
+  h1 { font-weight:300; font-style:italic; color:#ff6b8e; margin-bottom:24px; }
+  input { background:rgba(255,255,255,0.05); border:1px dashed #2a2836; color:#e8e6e0;
+          padding:10px 14px; border-radius:8px; font-size:16px; width:220px; }
+  button { background:none; border:1px dashed #4aa5d0; color:#67d4ff; padding:10px 20px;
+           border-radius:8px; font-size:14px; margin-left:8px; cursor:pointer; }
+</style></head><body>
+<form method="post" action="/auth">
+  <h1>claudio</h1>
+  <input type="password" name="token" placeholder="口令" autofocus autocomplete="current-password">
+  <button type="submit">进</button>
+</form></body></html>`;
+
+  app.post('/auth', express.urlencoded({ extended: false }), (req, res) => {
+    if ((req.body?.token || '') !== AUTH_TOKEN) return res.status(401).send(loginPage);
+    res.cookie(AUTH_COOKIE, AUTH_TOKEN, {
+      httpOnly: true, sameSite: 'lax', maxAge: 365 * 24 * 3600 * 1000
+    });
+    res.redirect('/');
+  });
+
+  app.use((req, res, next) => {
+    if (isAuthed(req)) return next();
+    // 浏览器要页面 → 给登录页; API/资源请求 → 干脆的 401 JSON
+    if (req.method === 'GET' && (req.headers.accept || '').includes('text/html')) {
+      return res.status(401).send(loginPage);
+    }
+    res.status(401).json({ error: '需要口令: cookie 或 Authorization: Bearer <CLAUDIO_AUTH_TOKEN>' });
+  });
+}
+
 app.use(express.static(path.resolve('../pwa')));
 app.use('/tts', express.static(tts.cacheDir()));  // 真人声音频直接静态伺服
 
@@ -33,7 +86,8 @@ const wss = new WebSocketServer({ server, path: '/stream' });
 
 // ——— WebSocket 广播 ———
 const clients = new Set();
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
+  if (!isAuthed(req)) { ws.close(4401, 'auth required'); return; }
   clients.add(ws);
   const s = state.get();
   ws.send(JSON.stringify({
@@ -169,6 +223,22 @@ app.post('/api/chat', async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('[chat] 出错:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ——— API: 语音识别 ———
+// 前端把整段录音 POST 过来 (raw body), 识别出文字后前端再走 /api/chat.
+// 分两步是故意的: 用户能看到识别结果, 而且 control 命令 ("下一首") 保持秒响应.
+app.post('/api/stt', express.raw({ type: 'audio/*', limit: '25mb' }), async (req, res) => {
+  if (!req.body?.length) {
+    return res.status(400).json({ error: '没收到音频数据 (Content-Type 要是 audio/*)' });
+  }
+  try {
+    const text = await stt.transcribe(req.body, req.get('content-type') || 'audio/webm');
+    res.json({ text });
+  } catch (e) {
+    console.error('[stt] 识别挂了:', e);
     res.status(500).json({ error: e.message });
   }
 });
