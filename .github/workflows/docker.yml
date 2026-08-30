@@ -42,11 +42,13 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
 
-      - name: Build & push (linux/amd64 + linux/arm64)
+      # 只出 amd64: 部署目标 (阿里云东京) 是 x86_64; arm64 在 QEMU 下会被
+      # codex CLI 的构建期自检 (codex --version) 卡死, 且暂时没有 arm64 部署需求
+      - name: Build & push (linux/amd64)
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
