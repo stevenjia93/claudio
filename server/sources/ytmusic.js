@@ -213,7 +213,9 @@ function ytdlpGetUrl(videoId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const args = [
       url,
-      '-f', 'bestaudio[ext=m4a]/bestaudio',
+      // 数据中心 IP (云服务器) 下 YT 常常不给纯音频格式, 落到混流 mp4 也行:
+      // <audio> 标签播混流只出声音, 格式 18 (https 渐进式) 可直接 pipe
+      '-f', 'bestaudio[ext=m4a]/bestaudio/best[ext=mp4][protocol=https]/best',
       '--get-url',
       '--no-warnings',
       ...ytdlpCookieArgs()

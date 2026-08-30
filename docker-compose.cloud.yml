@@ -23,7 +23,10 @@ services:
       - claudio-state:/app/state
       - claudio-tts:/app/tts_cache
       - ./codex:/root/.codex          # codex 登录态 (deploy 脚本放 auth.json 进来)
-    # YT 要浏览器 cookie 的话跟本地版一样挂 cookies.txt (见 docker-compose.yml 注释)
+      - ./cookies.txt:/cookies.txt    # YT cookie (deploy 脚本给的过滤版); 必须可写 — yt-dlp 要回写 YouTube 轮换后的 cookie
+    environment:
+      # 覆盖 .env 里的 YT_COOKIES_FROM_BROWSER: 容器里没有 Chrome, 用挂进来的文件
+      - YT_COOKIES_FILE=/cookies.txt
 
   caddy:
     image: caddy:2-alpine

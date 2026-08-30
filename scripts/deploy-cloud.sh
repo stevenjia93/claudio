@@ -18,8 +18,14 @@ grep -q "^CLAUDIO_AUTH_TOKEN=" .env || { echo "✗ .env 里没配 CLAUDIO_AUTH_T
 DOMAIN=$(grep "^CLAUDIO_DOMAIN=" .env | cut -d= -f2 | tr -d ' "')
 
 echo "▸ 推文件到 $HOST:$DIR"
-ssh "$HOST" "mkdir -p $DIR"
+ssh "$HOST" "sudo mkdir -p $DIR && sudo chown \$(id -un) $DIR"
 scp docker-compose.cloud.yml Caddyfile .env "$HOST:$DIR/"
+
+# YT cookie: 云上 IP 会被 YouTube 盘查, 挂过滤版 cookie 文件 (只含 YT/Google 域)
+# 重新生成: yt-dlp --cookies-from-browser chrome --cookies full.txt --skip-download <YT任意URL>
+#          然后 grep 出 youtube/google 行存成 cookies.txt (别把整罐 cookie 传上去!)
+[ -f cookies.txt ] || { echo "✗ 缺 cookies.txt (云上 YT 音源需要, 生成方法见本脚本注释)"; exit 1; }
+scp cookies.txt "$HOST:$DIR/"
 
 # 大脑走 codex 会员的话, 把本机登录态带上 (容器里挂到 /root/.codex)
 if grep -q "^CLAUDIO_BRAIN=codex" .env; then
